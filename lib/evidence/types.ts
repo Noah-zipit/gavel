@@ -14,6 +14,8 @@ export interface Candidate {
   priceTier: string;
   distanceMi: number;
   rating: number;
+  /** free-text descriptors for custom candidates (e.g. "Italian restaurant, family"); used for Qloo search + keyword matching */
+  keywords?: string;
 }
 
 export interface Evidence {

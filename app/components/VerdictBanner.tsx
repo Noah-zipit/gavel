@@ -1,7 +1,6 @@
 "use client";
 
 import type { VetoEvent, VerdictEvent } from "@/lib/debate-events";
-import { candidateById } from "./candidates";
 import { GavelIcon } from "./icons";
 
 interface VerdictBannerProps {
@@ -13,12 +12,11 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
   if (vetoes.length === 0 && !verdict) return null;
 
   const latestVeto = vetoes[vetoes.length - 1];
-  const winner = verdict ? candidateById(verdict.winnerId) : undefined;
-  const vetoed = latestVeto ? candidateById(latestVeto.candidateId) : undefined;
+  const winnerName = verdict?.winnerName ?? verdict?.winnerId ?? "";
+  const vetoedName = latestVeto?.candidateName ?? latestVeto?.candidateId ?? "";
   // The API summary opens with "THE VERDICT: <name>." and then repeats the
   // winner's name; the banner already carries the title and headline, so
   // strip both duplicate lead-ins.
-  const winnerName = winner ? winner.name : (verdict?.winnerId ?? "");
   const summary = verdict
     ? verdict.summary
         .replace(/^THE VERDICT:\s*/i, "")
@@ -55,9 +53,7 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
 
       {verdict ? (
         <div className="mt-4">
-          <p className="text-lg font-bold">
-            {winner ? winner.name : verdict.winnerId} wins.
-          </p>
+          <p className="text-lg font-bold">{winnerName} wins.</p>
           <p className="mt-1 text-[15px] font-medium">{summary}</p>
           <ol className="mt-4 flex flex-col gap-2">
             {proofSteps.map((step, i) => {
@@ -82,10 +78,8 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
       ) : (
         latestVeto && (
           <p className="mt-4 text-lg font-bold">
-            <span className="veto-strike">
-              {vetoed ? vetoed.name : latestVeto.candidateId}
-            </span>{" "}
-            VETOED · {latestVeto.reason}
+            <span className="veto-strike">{vetoedName}</span> VETOED ·{" "}
+            {latestVeto.reason}
           </p>
         )
       )}

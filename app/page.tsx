@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
-import Courtroom from "./components/Courtroom";
+"use client";
 
-export const metadata: Metadata = {
-  title: "AI Courtroom · Gavel",
-  description:
-    "Two advocate AI agents argue where four friends eat Friday night, citing live taste-graph evidence, until the judge delivers a verdict.",
-};
+import { useState } from "react";
+import Courtroom from "./components/Courtroom";
+import SetupScreen, { type DebateConfig } from "./components/SetupScreen";
 
 export default function Home() {
-  return <Courtroom />;
+  const [config, setConfig] = useState<DebateConfig | null>(null);
+
+  if (!config) {
+    return <SetupScreen onStart={setConfig} />;
+  }
+  return <Courtroom config={config} onBack={() => setConfig(null)} />;
 }

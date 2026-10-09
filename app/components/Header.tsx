@@ -4,9 +4,10 @@ import { GavelIcon } from "./icons";
 
 interface HeaderProps {
   live: boolean;
+  question: string;
 }
 
-export default function Header({ live }: HeaderProps) {
+export default function Header({ live, question }: HeaderProps) {
   return (
     <header className="border-b border-court-border bg-court-panel">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 sm:px-6">
@@ -19,7 +20,7 @@ export default function Header({ live }: HeaderProps) {
         </div>
 
         <h1 className="order-3 w-full text-center text-xl font-bold text-court-text sm:order-2 sm:w-auto sm:flex-1 sm:text-2xl">
-          Where do 4 friends eat Friday night?
+          {question}
         </h1>
 
         <div className="order-2 ml-auto sm:order-3 sm:ml-0">

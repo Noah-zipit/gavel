@@ -81,9 +81,11 @@ the Qloo Agentic Hackathon API. How it works and what it had to handle:
 - Hackathon keys only work on the hackathon host; used anywhere else they get
   a 401, which the adapter treats as "API unavailable."
 - Two endpoints: `/search` resolves restaurant names and seed artists to Qloo
-  entity IDs, and `/v2/insights` (GET only, all parameters on the query string)
-  pulls ranked place recommendations so the adapter can find the candidate's
-  place entity and read its affinity.
+  entity IDs. `/v2/insights` was investigated thoroughly (GET-only, all
+  parameters on the query string, `filter.type` set to `urn:entity:place`,
+  `urn:entity:artist`, `urn:entity:movie`, `urn:entity:brand`) and returns
+  **empty entity lists for every filter in the hackathon environment** — it is
+  effectively dead, so no scoring path depends on it.
 - The quirks, all discovered live: invalid parameters are **silently ignored**,
   meaning the API returns 200 with an empty entity list instead of an error, so
   an empty result is always treated as a soft failure, never as "zero affinity."
@@ -100,6 +102,33 @@ hand-authored fixtures for the demo group (Alex, Sara, Jordan, Micah) and the
 two candidates. The fixture plot: everyone leans Italian, and Sara's sushi
 affinity is 0.18, below the 0.30 veto line, so Sakura Sushi gets vetoed. No raw
 Qloo API responses are stored anywhere in the repo.
+
+**CustomQlooAdapter** (`lib/evidence/custom.ts`) scores user-defined people and
+candidates with real Qloo data — the working-prototype path. Since
+`/v2/insights` is dead, affinity is computed from real `/search` entity data:
+
+- Each person's taste seeds resolve via `/search` to Qloo entities; their tags
+  become the person's taste graph. Seeds like "no sushi" or "hate fish" are
+  parsed as explicit negatives (never sent to Qloo as entities).
+- Each candidate resolves via `/search` with `types=urn:entity:place` to a real
+  place entity; its tags and popularity are read from the live response.
+- Affinity = 0.60 keyword signal + 0.25 tag overlap (Jaccard between the
+  person's entity tags and the place's tags) + 0.15 place popularity, clamped
+  to [0.05, 0.95]. The keyword signal starts at 0.50, gains +0.12 per positive
+  seed-token match (expanded through a cuisine synonym map: sushi→japanese,
+  pizza→italian, etc.), and loses −0.45 per negative match so an explicit
+  dislike lands below the 0.30 veto threshold. Every evidence label cites the
+  real Qloo tags behind the score; if place resolution fails after a retry, the
+  score falls back to keyword signal alone (still real user data, flagged in
+  the evidence detail) rather than failing the debate.
+
+**Demo vs custom detection** (`lib/debate-setup.ts`): if the submitted names
+exactly match the demo group (alex/sara/jordan/micah + casa di roma/sakura
+sushi), the mock adapter is used so the scripted veto plot survives. Any edit
+switches to the custom adapter with real scoring. The setup screen pre-fills
+the demo data so judges can start instantly, and the verdict banner, candidate
+cards, evidence board, and header all render from the API-returned data —
+no hard-coded names remain in the UI.
 
 **Fallback** (`lib/evidence/index.ts`): `getAdapter()` picks the real adapter
 only when a key is configured (and `QLOO_ADAPTER` is not forced to `mock`).

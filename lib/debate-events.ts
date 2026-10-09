@@ -62,6 +62,8 @@ export interface VetoEvent {
   type: "veto";
   /** candidate id, e.g. "sakura-sushi" */
   candidateId: string;
+  /** display name of the vetoed candidate */
+  candidateName?: string;
   /** who issued the veto, e.g. "Judge" or "Sara's taste graph" */
   by: string;
   reason: string;
@@ -77,7 +79,9 @@ export interface ProofStep {
 export interface VerdictEvent {
   type: "verdict";
   winnerId: string;
+  winnerName?: string;
   loserId: string;
+  loserName?: string;
   proofChain: ProofStep[];
   summary: string;
 }

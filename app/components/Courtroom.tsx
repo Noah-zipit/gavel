@@ -15,7 +15,8 @@ import TugOfWar from "./TugOfWar";
 import Transcript from "./Transcript";
 import EvidenceBoard from "./EvidenceBoard";
 import VerdictBanner from "./VerdictBanner";
-import { CANDIDATES } from "./candidates";
+import type { DebateConfig } from "./SetupScreen";
+import { buildDisplayCandidates } from "./candidates";
 import { GavelIcon } from "./icons";
 
 type Status = "idle" | "connecting" | "streaming" | "done" | "error";
@@ -35,6 +36,22 @@ interface StageScore {
   reason: string;
 }
 
+interface BoardNode {
+  id: string;
+  personName: string;
+  candidateName: string;
+  weight: number;
+  candidateIndex: number;
+}
+
+interface ApiCandidate {
+  id: string;
+  name: string;
+  side: string;
+  keywords: string;
+  priceTier: string;
+}
+
 interface ArgumentStageResponse {
   stage: string;
   round: string;
@@ -44,12 +61,15 @@ interface ArgumentStageResponse {
   scoreA: number;
   scoreB: number;
   litNodes?: string[];
+  boardNodes?: BoardNode[];
+  candidates?: ApiCandidate[];
+  groupSize?: number;
 }
 
 interface VerdictStageResponse {
   stage: string;
-  vetoes: Array<{ candidateId: string; by: string; reason: string }>;
-  verdict: { winnerId: string; loserId: string };
+  vetoes: Array<{ candidateId: string; candidateName?: string; by: string; reason: string }>;
+  verdict: { winnerId: string; winnerName?: string; loserId: string; loserName?: string };
   proofChain: Array<{ step: string; evidence: string; weight: number }>;
   summary: string;
 }
@@ -61,7 +81,13 @@ function scoreKey(e: ScoreEvent) {
   return `${e.a}|${e.b}|${e.delta}|${e.reason}`;
 }
 
-export default function Courtroom() {
+export default function Courtroom({
+  config,
+  onBack,
+}: {
+  config: DebateConfig;
+  onBack: () => void;
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [args, setArgs] = useState<ArgumentEvent[]>([]);
   const [score, setScore] = useState<ScoreEvent | null>(null);
@@ -69,6 +95,8 @@ export default function Courtroom() {
   const [vetoes, setVetoes] = useState<VetoEvent[]>([]);
   const [verdict, setVerdict] = useState<VerdictEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [apiCandidates, setApiCandidates] = useState<ApiCandidate[]>([]);
+  const [boardNodes, setBoardNodes] = useState<BoardNode[]>([]);
 
   const runIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
@@ -95,8 +123,11 @@ export default function Courtroom() {
       round: string,
       side: DebateSide
     ): Promise<{ scoreA: number; scoreB: number; args: StageArgument[] }> => {
-      // Light the evidence board once, when the trial opens.
+      // Light the evidence board once, when the debate opens.
+      // Board nodes + candidate cards come from the API (dynamic per group).
       if (res.litNodes) {
+        if (res.boardNodes) setBoardNodes(res.boardNodes);
+        if (res.candidates) setApiCandidates(res.candidates);
         for (const nodeId of res.litNodes) {
           if (runIdRef.current !== runId) return { scoreA: res.scoreA, scoreB: res.scoreB, args: [] };
           const evt: EvidenceEvent = { type: "evidence", nodeId, lit: true };
@@ -136,6 +167,12 @@ export default function Courtroom() {
     ): Promise<ArgumentStageResponse | VerdictStageResponse> => {
       // One retry: serverless functions can cold-start or hit a slow NIM
       // call; stages are stateless and idempotent, so retrying is safe.
+      // The custom debate config rides along on every call (stateless API).
+      const fullBody = {
+        ...body,
+        people: config.people,
+        candidates: config.candidates,
+      };
       let lastError: unknown = null;
       for (let attempt = 0; attempt < 2; attempt++) {
         if (attempt > 0) await pause(1500);
@@ -145,7 +182,7 @@ export default function Courtroom() {
           const res = await fetch(STAGE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+            body: JSON.stringify(fullBody),
             signal: ctrl.signal,
           });
           if (!res.ok) {
@@ -170,7 +207,7 @@ export default function Courtroom() {
         ? lastError
         : new Error(`stage "${String(body.stage)}" failed`);
     },
-    []
+    [config]
   );
 
   const start = useCallback(() => {
@@ -187,6 +224,8 @@ export default function Courtroom() {
     setVetoes([]);
     setVerdict(null);
     setErrorMsg(null);
+    setApiCandidates([]);
+    setBoardNodes([]);
     seenScores.current = new Set();
     setStatus("connecting");
 
@@ -255,7 +294,9 @@ export default function Courtroom() {
         const verdictEvt: VerdictEvent = {
           type: "verdict",
           winnerId: v.verdict.winnerId,
+          winnerName: v.verdict.winnerName,
           loserId: v.verdict.loserId,
+          loserName: v.verdict.loserName,
           proofChain: v.proofChain,
           summary: v.summary,
         };
@@ -300,13 +341,20 @@ export default function Courtroom() {
 
   const busy = status === "connecting" || status === "streaming";
   const showArena = status === "streaming" || status === "done" || status === "error";
-  const matchA = score ? score.a : CANDIDATES[0].initialMatch;
-  const matchB = score ? score.b : CANDIDATES[1].initialMatch;
+  // Card data: live API candidates once the debate opens, else the setup form.
+  const displayCandidates = buildDisplayCandidates(
+    apiCandidates.length > 0 ? apiCandidates : config.candidates
+  );
+  const cardA = displayCandidates[0]!;
+  const cardB = displayCandidates[1]!;
+  const matchA = score ? score.a : cardA.initialMatch;
+  const matchB = score ? score.b : cardB.initialMatch;
   const vetoedIds = new Set(vetoes.map((v) => v.candidateId));
+  const question = `Where do ${config.people.length} friends eat Friday night?`;
 
   return (
     <div className="flex min-h-screen flex-col bg-court-bg text-court-text">
-      <Header live={busy} />
+      <Header live={busy} question={question} />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 px-4 py-5 sm:px-6">
         {/* Controls */}
@@ -330,6 +378,17 @@ export default function Courtroom() {
             className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-court-border px-6 text-base font-semibold text-court-text transition-colors hover:border-court-muted disabled:cursor-not-allowed disabled:opacity-40"
           >
             Reset
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              reset();
+              onBack();
+            }}
+            disabled={busy}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-court-border px-6 text-base font-semibold text-court-muted transition-colors hover:border-court-muted hover:text-court-text disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            ← Change setup
           </button>
           {status === "done" && (
             <p className="text-sm font-medium text-court-muted">
@@ -403,9 +462,9 @@ export default function Courtroom() {
 
             <div className="grid items-center gap-4 md:grid-cols-[1fr_minmax(180px,240px)_1fr]">
               <CandidateCard
-                candidate={CANDIDATES[0]}
+                candidate={cardA}
                 match={matchA}
-                vetoed={vetoedIds.has(CANDIDATES[0].id)}
+                vetoed={vetoedIds.has(cardA.id)}
               />
               <div className="px-1 md:px-2">
                 <TugOfWar
@@ -416,15 +475,19 @@ export default function Courtroom() {
                 />
               </div>
               <CandidateCard
-                candidate={CANDIDATES[1]}
+                candidate={cardB}
                 match={matchB}
-                vetoed={vetoedIds.has(CANDIDATES[1].id)}
+                vetoed={vetoedIds.has(cardB.id)}
               />
             </div>
 
             <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
               <Transcript items={args} streaming={status === "streaming"} />
-              <EvidenceBoard litNodes={litNodes} />
+              <EvidenceBoard
+                litNodes={litNodes}
+                nodes={boardNodes}
+                groupSize={config.people.length}
+              />
             </div>
 
             <VerdictBanner vetoes={vetoes} verdict={verdict} />

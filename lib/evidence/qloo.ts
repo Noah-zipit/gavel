@@ -32,7 +32,7 @@ export class QlooUnavailableError extends Error {
   }
 }
 
-interface SearchResult {
+export interface SearchResult {
   name?: string;
   entity_id?: string;
   types?: string[];
@@ -142,7 +142,7 @@ function q(url: string, params: Record<string, string | undefined>): string {
   return `${url}?${qs.toString()}`;
 }
 
-async function searchEntity(
+export async function searchEntity(
   query: string,
   typeFilter?: string
 ): Promise<SearchResult | null> {
@@ -157,16 +157,16 @@ async function searchEntity(
   return results[0] ?? null;
 }
 
-function normalizeAffinity(raw: unknown): number {
+export function tagLabels(tags: Array<{ name?: string; id?: string }> | undefined): string[] {
+  return (tags ?? []).map((t) => t.name ?? "").filter(Boolean).slice(0, 6);
+}
+
+export function normalizeAffinity(raw: unknown): number {
   let n = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(n)) return 0.5;
   // Qloo sometimes returns 0..100 affinity; normalize to 0..1.
   if (n > 1) n = n / 100;
   return Math.min(1, Math.max(0, n));
-}
-
-function tagLabels(tags: Array<{ name?: string; id?: string }> | undefined): string[] {
-  return (tags ?? []).map((t) => t.name ?? "").filter(Boolean).slice(0, 6);
 }
 
 export class RealQlooAdapter implements EvidenceAdapter {

@@ -25,6 +25,7 @@ import {
   applyShift,
   scoreReason,
   setupDebate,
+  type CustomDebateInput,
 } from "@/lib/debate-setup";
 import type { Evidence } from "@/lib/evidence/types";
 
@@ -61,6 +62,8 @@ export async function POST(request: NextRequest) {
     scoreA?: unknown;
     scoreB?: unknown;
     opponentArgs?: unknown;
+    people?: unknown;
+    candidates?: unknown;
   };
   try {
     body = await request.json();
@@ -77,8 +80,34 @@ export async function POST(request: NextRequest) {
   const startA = typeof body.scoreA === "number" ? body.scoreA : 50;
   const startB = typeof body.scoreB === "number" ? body.scoreB : 50;
 
+  // Custom debate input (setup screen). Absent -> demo fixtures.
+  let customInput: CustomDebateInput | undefined;
+  if (body.people !== undefined || body.candidates !== undefined) {
+    if (!Array.isArray(body.people) || !Array.isArray(body.candidates)) {
+      return bad("people and candidates must be arrays");
+    }
+    customInput = {
+      people: (body.people as Array<Record<string, unknown>>).map((p) => ({
+        name: String(p.name ?? ""),
+        seeds: Array.isArray(p.seeds)
+          ? p.seeds.map((s) => String(s))
+          : String(p.seeds ?? "")
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+      })),
+      candidates: (body.candidates as Array<Record<string, unknown>>).map(
+        (c) => ({
+          name: String(c.name ?? ""),
+          keywords: String(c.keywords ?? ""),
+          priceTier: String(c.priceTier ?? "$$"),
+        })
+      ),
+    };
+  }
+
   try {
-    const setup = await setupDebate();
+    const setup = await setupDebate(customInput);
     const { candidateA, candidateB, scoredByCandidate } = setup;
 
     // ---- Argument stages ----
@@ -137,8 +166,22 @@ export async function POST(request: NextRequest) {
         scores,
         scoreA: a,
         scoreB: b,
-        // The client lights the evidence board once, when the trial opens.
-        ...(stage === "opening-a" ? { litNodes: setup.litNodeIds } : {}),
+        // The client lights the evidence board once, when the debate opens.
+        // Board nodes + candidate cards are built dynamically from these.
+        ...(stage === "opening-a"
+          ? {
+              litNodes: setup.litNodeIds,
+              boardNodes: setup.boardNodes,
+              candidates: setup.candidates.map((c, i) => ({
+                id: c.id,
+                name: c.name,
+                side: i === 0 ? "a" : "b",
+                keywords: c.keywords ?? c.cuisine,
+                priceTier: c.priceTier,
+              })),
+              groupSize: setup.group.length,
+            }
+          : {}),
       });
     }
 
@@ -168,6 +211,7 @@ export async function POST(request: NextRequest) {
 
     const vetoList: Array<{
       candidateId: string;
+      candidateName: string;
       by: string;
       reason: string;
     }> = [];
@@ -175,6 +219,7 @@ export async function POST(request: NextRequest) {
       for (const veto of vetoes.get(candidate.id) ?? []) {
         vetoList.push({
           candidateId: candidate.id,
+          candidateName: candidate.name,
           by: veto.person.name,
           reason: veto.reason,
         });
@@ -184,7 +229,12 @@ export async function POST(request: NextRequest) {
     return Response.json({
       stage,
       vetoes: vetoList,
-      verdict: { winnerId: decision.winnerId, loserId: decision.loserId },
+      verdict: {
+        winnerId: decision.winnerId,
+        winnerName: winner.name,
+        loserId: decision.loserId,
+        loserName: setup.candidates.find((c) => c.id === decision.loserId)?.name ?? decision.loserId,
+      },
       proofChain,
       summary: `THE VERDICT: ${winner.name}. ${decision.reason}`,
     });
