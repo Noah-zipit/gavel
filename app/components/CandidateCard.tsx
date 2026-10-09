@@ -1,7 +1,7 @@
 "use client";
 
 import type { DisplayCandidate } from "./candidates";
-import { StarIcon, UtensilsIcon } from "./icons";
+import { FilmIcon, StarIcon, UtensilsIcon } from "./icons";
 
 interface CandidateCardProps {
   candidate: DisplayCandidate;
@@ -20,6 +20,7 @@ export default function CandidateCard({
   const accent = isA ? "text-court-amber" : "text-court-teal";
   const border = isA ? "border-court-amber" : "border-court-teal";
   const chip = isA ? "bg-court-amber/15 text-court-amber" : "bg-court-teal/15 text-court-teal";
+  const DomainIcon = candidate.domain === "movies" ? FilmIcon : UtensilsIcon;
 
   return (
     <article
@@ -36,7 +37,7 @@ export default function CandidateCard({
             candidate.name
           )}
         </h2>
-        <UtensilsIcon className={`h-10 w-10 shrink-0 ${accent}`} />
+        <DomainIcon className={`h-10 w-10 shrink-0 ${accent}`} />
       </div>
 
       {candidate.tags.length > 0 && (
@@ -59,8 +60,12 @@ export default function CandidateCard({
             <span aria-hidden="true" className="text-court-muted">·</span>
           </>
         )}
-        <span>{candidate.price}</span>
-        <span aria-hidden="true" className="text-court-muted">·</span>
+        {candidate.price && (
+          <>
+            <span>{candidate.price}</span>
+            <span aria-hidden="true" className="text-court-muted">·</span>
+          </>
+        )}
         <span className="font-semibold" aria-live="off">
           {Math.round(match)}% match
         </span>

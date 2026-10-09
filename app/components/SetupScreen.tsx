@@ -1,24 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GavelIcon } from "./icons";
 import type { CustomCandidateInput, CustomPersonInput } from "@/lib/debate-setup";
+import type { DebateDomain } from "@/lib/evidence/types";
+import { loadHistory, type HistoryEntry } from "@/lib/history";
 
 export interface DebateConfig {
+  domain: DebateDomain;
   people: CustomPersonInput[];
   candidates: CustomCandidateInput[];
 }
 
-const DEMO_PEOPLE: CustomPersonInput[] = [
+const DEMO_PEOPLE_DINING: CustomPersonInput[] = [
   { name: "Alex", seeds: ["Hans Zimmer", "Bonobo", "Anoushka Shankar"] },
   { name: "Sara", seeds: ["Ariana Grande", "Billie Eilish", "Nusrat Fateh Ali Khan"] },
   { name: "Jordan", seeds: ["Kendrick Lamar", "Anderson .Paak", "Talha Anjum"] },
   { name: "Micah", seeds: ["Coldplay", "Strings", "Taylor Swift"] },
 ];
 
-const DEMO_CANDIDATES: CustomCandidateInput[] = [
+const DEMO_CANDIDATES_DINING: CustomCandidateInput[] = [
   { name: "Casa di Roma", keywords: "Italian restaurant, pizza, pasta", priceTier: "$$" },
   { name: "Sakura Sushi", keywords: "Japanese restaurant, sushi", priceTier: "$$$" },
+];
+
+const DEMO_PEOPLE_MOVIES: CustomPersonInput[] = [
+  { name: "Alex", seeds: ["Dune", "Blade Runner 2049", "Interstellar"] },
+  { name: "Sara", seeds: ["La La Land", "The Greatest Showman", "Mamma Mia"] },
+  { name: "Jordan", seeds: ["The Dark Knight", "Inception", "no musicals"] },
+  { name: "Micah", seeds: ["Spider-Man", "Avengers: Endgame", "The Batman"] },
+];
+
+const DEMO_CANDIDATES_MOVIES: CustomCandidateInput[] = [
+  { name: "Dune: Part Two", keywords: "sci-fi epic, desert adventure", priceTier: "" },
+  { name: "La La Land", keywords: "musical romance, Los Angeles", priceTier: "" },
 ];
 
 const PRICE_TIERS = ["$", "$$", "$$$"];
@@ -34,11 +49,25 @@ interface CandidateDraft {
   priceTier: string;
 }
 
+function draftsFor(domain: DebateDomain): {
+  people: PersonDraft[];
+  candidates: CandidateDraft[];
+} {
+  const dp = domain === "movies" ? DEMO_PEOPLE_MOVIES : DEMO_PEOPLE_DINING;
+  const dc = domain === "movies" ? DEMO_CANDIDATES_MOVIES : DEMO_CANDIDATES_DINING;
+  return {
+    people: dp.map((p) => ({ name: p.name, keywords: p.seeds.join(", ") })),
+    candidates: dc.map((c) => ({ ...c })),
+  };
+}
+
 function toConfig(
+  domain: DebateDomain,
   people: PersonDraft[],
   candidates: CandidateDraft[]
 ): DebateConfig {
   return {
+    domain,
     people: people.map((p) => ({
       name: p.name.trim(),
       seeds: p.keywords
@@ -49,9 +78,83 @@ function toConfig(
     candidates: candidates.map((c) => ({
       name: c.name.trim(),
       keywords: c.keywords.trim(),
-      priceTier: c.priceTier,
+      priceTier: domain === "movies" ? "" : c.priceTier,
     })),
   };
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function HistorySection() {
+  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEntries(loadHistory());
+  }, []);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <section aria-label="Past verdicts" className="mt-10 sm:mt-12">
+      <h2 className="eyebrow text-court-muted">
+        Past verdicts · {entries.length}
+      </h2>
+      <ul className="mt-4 flex flex-col gap-2">
+        {entries.map((e) => {
+          const open = openId === e.id;
+          return (
+            <li
+              key={e.id}
+              className="rounded-lg border border-court-border bg-court-panel"
+            >
+              <button
+                type="button"
+                onClick={() => setOpenId(open ? null : e.id)}
+                aria-expanded={open}
+                className="flex min-h-[44px] w-full items-center gap-3 px-4 py-3 text-left"
+              >
+                <span className="text-sm font-bold text-court-gold">
+                  {e.winner}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-court-subtle">
+                  {e.domain}
+                </span>
+                <span className="ml-auto shrink-0 text-xs text-court-subtle">
+                  {formatDate(e.date)}
+                </span>
+              </button>
+              {open && (
+                <div className="border-t border-court-border px-4 py-3">
+                  <p className="text-sm font-medium text-court-text">
+                    {e.summary}
+                  </p>
+                  {e.veto && (
+                    <p className="mt-2 text-sm text-court-muted">
+                      Veto: {e.veto.by} blocked {e.veto.candidate}.
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-court-subtle">
+                    {e.people.join(", ")} decided between{" "}
+                    {e.candidates.join(" and ")}.
+                  </p>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 export default function SetupScreen({
@@ -59,13 +162,22 @@ export default function SetupScreen({
 }: {
   onStart: (config: DebateConfig) => void;
 }) {
-  const [people, setPeople] = useState<PersonDraft[]>(
-    DEMO_PEOPLE.map((p) => ({ name: p.name, keywords: p.seeds.join(", ") }))
-  );
+  const [domain, setDomain] = useState<DebateDomain>("dining");
+  const initial = draftsFor("dining");
+  const [people, setPeople] = useState<PersonDraft[]>(initial.people);
   const [candidates, setCandidates] = useState<CandidateDraft[]>(
-    DEMO_CANDIDATES.map((c) => ({ ...c }))
+    initial.candidates
   );
   const [error, setError] = useState<string | null>(null);
+
+  const switchDomain = (d: DebateDomain) => {
+    if (d === domain) return;
+    setDomain(d);
+    const fresh = draftsFor(d);
+    setPeople(fresh.people);
+    setCandidates(fresh.candidates);
+    setError(null);
+  };
 
   const setPerson = (i: number, patch: Partial<PersonDraft>) =>
     setPeople((prev) => prev.map((p, j) => (j === i ? { ...p, ...patch } : p)));
@@ -86,11 +198,13 @@ export default function SetupScreen({
     for (const c of candidates) {
       if (!c.name.trim()) return setError("Every option needs a name.");
     }
-    onStart(toConfig(people, candidates));
+    onStart(toConfig(domain, people, candidates));
   };
 
   const fieldCls =
     "mt-2 min-h-[44px] w-full rounded-md border border-court-border bg-court-bg px-3 py-2.5 text-[15px] text-court-text placeholder:text-court-subtle focus:border-court-border-strong focus:outline-none";
+
+  const isMovies = domain === "movies";
 
   return (
     <div className="flex min-h-screen flex-col bg-court-bg text-court-text">
@@ -112,10 +226,36 @@ export default function SetupScreen({
             Settle the group chat.
           </h1>
           <p className="mt-3 text-lg leading-relaxed text-court-muted">
-            Two advocate agents argue your options with live taste evidence.
-            The judge vetoes what the group cannot stand, then delivers a
-            verdict with receipts.
+            {isMovies
+              ? "Two advocate agents argue your movie options with live taste evidence. The judge vetoes what the group cannot stand, then delivers a verdict with receipts."
+              : "Two advocate agents argue your options with live taste evidence. The judge vetoes what the group cannot stand, then delivers a verdict with receipts."}
           </p>
+        </div>
+
+        {/* Domain toggle */}
+        <div className="mt-8 max-w-2xl">
+          <div
+            className="grid grid-cols-2 gap-1 rounded-md border border-court-border bg-court-panel p-1"
+            role="radiogroup"
+            aria-label="What are you deciding"
+          >
+            {(["dining", "movies"] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                role="radio"
+                aria-checked={domain === d}
+                onClick={() => switchDomain(d)}
+                className={`inline-flex min-h-[44px] items-center justify-center rounded px-4 text-sm font-bold uppercase tracking-[0.14em] ${
+                  domain === d
+                    ? "bg-court-surface3 text-court-text"
+                    : "text-court-subtle hover:text-court-muted"
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* People */}
@@ -171,7 +311,11 @@ export default function SetupScreen({
                   aria-label={`${p.name || `Person ${i + 1}`} taste keywords`}
                   value={p.keywords}
                   onChange={(e) => setPerson(i, { keywords: e.target.value })}
-                  placeholder="sushi, jazz, anime, or 'no raw fish' to veto"
+                  placeholder={
+                    isMovies
+                      ? "Dune, horror, or 'no musicals' to veto"
+                      : "sushi, jazz, anime, or 'no raw fish' to veto"
+                  }
                   className={fieldCls}
                 />
               </div>
@@ -214,7 +358,9 @@ export default function SetupScreen({
                       aria-label={`Option ${i + 1} name`}
                       value={c.name}
                       onChange={(e) => setCandidate(i, { name: e.target.value })}
-                      placeholder="Restaurant or hotel name"
+                      placeholder={
+                        isMovies ? "Movie title" : "Restaurant or hotel name"
+                      }
                       maxLength={40}
                       className={`display-tight w-full bg-transparent text-lg font-bold ${accent} placeholder:text-court-subtle focus:outline-none`}
                     />
@@ -242,31 +388,37 @@ export default function SetupScreen({
                     onChange={(e) =>
                       setCandidate(i, { keywords: e.target.value })
                     }
-                    placeholder="Italian restaurant, pizza, or beach hotel, luxury"
+                    placeholder={
+                      isMovies
+                        ? "sci-fi epic, space adventure"
+                        : "Italian restaurant, pizza, or beach hotel, luxury"
+                    }
                     className={fieldCls}
                   />
-                  <div
-                    className="mt-3 grid grid-cols-3 gap-1 rounded-md border border-court-border bg-court-bg p-1"
-                    role="radiogroup"
-                    aria-label="Price tier"
-                  >
-                    {PRICE_TIERS.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        role="radio"
-                        aria-checked={c.priceTier === t}
-                        onClick={() => setCandidate(i, { priceTier: t })}
-                        className={`inline-flex min-h-[44px] items-center justify-center rounded px-3 text-sm font-bold ${
-                          c.priceTier === t
-                            ? "bg-court-surface3 text-court-text"
-                            : "text-court-subtle hover:text-court-muted"
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
+                  {!isMovies && (
+                    <div
+                      className="mt-3 grid grid-cols-3 gap-1 rounded-md border border-court-border bg-court-bg p-1"
+                      role="radiogroup"
+                      aria-label="Price tier"
+                    >
+                      {PRICE_TIERS.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          role="radio"
+                          aria-checked={c.priceTier === t}
+                          onClick={() => setCandidate(i, { priceTier: t })}
+                          className={`inline-flex min-h-[44px] items-center justify-center rounded px-3 text-sm font-bold ${
+                            c.priceTier === t
+                              ? "bg-court-surface3 text-court-text"
+                              : "text-court-subtle hover:text-court-muted"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -289,9 +441,13 @@ export default function SetupScreen({
             Start the debate
           </button>
           <p className="mt-3 text-sm text-court-muted">
-            Tip: add a dislike like “no sushi” to watch the judge veto it live.
+            {isMovies
+              ? "Tip: add a dislike like “no horror” to watch the judge veto it live."
+              : "Tip: add a dislike like “no sushi” to watch the judge veto it live."}
           </p>
         </div>
+
+        <HistorySection />
       </main>
 
       <footer className="border-t border-court-border">

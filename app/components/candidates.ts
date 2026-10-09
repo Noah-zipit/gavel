@@ -1,5 +1,7 @@
 /** Candidate display facts for the courtroom cards. Built dynamically per debate. */
 
+import type { DebateDomain } from "@/lib/evidence/types";
+
 export interface DisplayCandidate {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface DisplayCandidate {
   rating?: number;
   distance?: string;
   pros?: string;
+  domain: DebateDomain;
   /** match % shown before the first score event arrives */
   initialMatch: number;
 }
@@ -21,7 +24,8 @@ export function buildDisplayCandidates(
     keywords?: string;
     priceTier?: string;
     side?: string;
-  }>
+  }>,
+  domain: DebateDomain = "dining"
 ): DisplayCandidate[] {
   return candidates.map((c, i) => ({
     id: c.id ?? `candidate-${i}`,
@@ -32,7 +36,8 @@ export function buildDisplayCandidates(
       .map((t) => t.trim())
       .filter(Boolean)
       .slice(0, 4),
-    price: c.priceTier ?? "$$",
+    price: c.priceTier ?? "",
+    domain,
     initialMatch: 50,
   }));
 }

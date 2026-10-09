@@ -4,7 +4,12 @@
 // nothing is hard-coded. LLM renders the phrasing, with a deterministic
 // template fallback so the debate always runs.
 
-import type { Candidate, Evidence, ScoredCandidate } from "../evidence/types";
+import type {
+  Candidate,
+  DebateDomain,
+  Evidence,
+  ScoredCandidate,
+} from "../evidence/types";
 import { getLlm, type LlmAdapter } from "./llm";
 
 export interface Argument {
@@ -19,12 +24,27 @@ interface FlattenedEvidence extends Evidence {
 export class Advocate {
   readonly side: "A" | "B";
   readonly candidate: Candidate;
+  readonly domain: DebateDomain;
   private llm: LlmAdapter;
 
-  constructor(side: "A" | "B", candidate: Candidate) {
+  constructor(side: "A" | "B", candidate: Candidate, domain: DebateDomain = "dining") {
     this.side = side;
     this.candidate = candidate;
+    this.domain = domain;
     this.llm = getLlm();
+  }
+
+  /** "tonight's group dinner pick" vs "tonight's group movie pick", etc. */
+  private get pickNoun(): string {
+    return this.domain === "movies"
+      ? "tonight's group movie pick"
+      : "tonight's group dinner pick";
+  }
+
+  /** "(Italian restaurant, $$)" for dining; "(sci-fi epic)" for movies. */
+  private get descriptor(): string {
+    if (this.domain === "movies") return this.candidate.cuisine;
+    return `${this.candidate.cuisine}, ${this.candidate.priceTier}`;
   }
 
   // All evidence across the group, ranked by weight, top N wins.
@@ -69,7 +89,7 @@ export class Advocate {
       top.map(async (e) => {
         const prompt =
           `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
-          `(${this.candidate.cuisine}, ${this.candidate.priceTier}) as tonight's group dinner pick. ` +
+          `(${this.descriptor}) as ${this.pickNoun}. ` +
           `Write ONE forceful opening argument (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
           `Cite the evidence label and its weight naturally. No em dashes. ` +
           this.evidenceJsonBlock("opening", e);
@@ -95,7 +115,7 @@ export class Advocate {
           : "the opposition's opening claims.";
         const prompt =
           `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
-          `(${this.candidate.cuisine}, ${this.candidate.priceTier}). The opposition just argued: ` +
+          `(${this.descriptor}). The opposition just argued: ` +
           `"${opponentSummary}" Rebut it in ONE sharp rebuttal (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
           `evidence below. Cite the evidence label and weight naturally. No em dashes. ` +
           this.evidenceJsonBlock("rebuttal", e, opponentSummary);

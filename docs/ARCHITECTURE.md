@@ -196,6 +196,28 @@ all in dark-charcoal courtroom styling (see `DESIGN.md`):
 `GET /api/health` reports `{ status: "ok", evidence: "real-qloo" | "mock" }`,
 which is how the UI and the demo operator know which evidence source is live.
 
+## Domains, sharing, history, veto drama (2026-10-09)
+
+- **Domains.** `POST /api/debate/stage` accepts `domain: "dining" | "movies"`.
+  The domain selects the Qloo `/search` entity type (`urn:entity:place` vs
+  `urn:entity:movie`), the synonym map for keyword matching
+  (cuisine vs genre), and all user-facing copy (advocate prompts say "movie
+  pick" not "dinner pick"; the header asks what the group watches). Scoring
+  math is identical. The setup screen has a Dining/Movies toggle with
+  per-domain demo data; the movies demo seeds a "no musicals" dislike so the
+  veto fires on the demo path too.
+- **Shareable verdict.** `VerdictBanner` has a Share button: Web Share API
+  (`navigator.share`) on mobile, clipboard fallback on desktop with a
+  "Copied" confirmation. The text is winner + veto one-liner + top two proof
+  points + app URL, no em dashes.
+- **Debate history.** `lib/history.ts` persists each verdict to localStorage
+  (capped at 20, newest first): date, domain, people, candidates, winner,
+  veto, summary. The setup screen lists them quietly with expandable rows.
+- **Veto drama.** When a veto fires, the client holds a full-width
+  `VetoInterruption` objection card ("VETO · OBJECTION SUSTAINED") for ~1.8s
+  before the veto joins the record and the verdict lands. Restrained
+  fade/slide-in, honors `prefers-reduced-motion`.
+
 ## Demo
 
 The two-minute demo script lives in `DEMO.md` at the repo root: the question,

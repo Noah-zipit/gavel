@@ -16,6 +16,7 @@ import { getDemoCandidates, getDemoGroup } from "@/lib/evidence/mock";
 import { RealQlooAdapter } from "@/lib/evidence/qloo";
 import type {
   Candidate,
+  DebateDomain,
   EvidenceAdapter,
   Person,
   ScoredCandidate,
@@ -37,6 +38,8 @@ export interface CustomCandidateInput {
 export interface CustomDebateInput {
   people: CustomPersonInput[];
   candidates: CustomCandidateInput[];
+  /** what the group is deciding between; drives Qloo entity types + copy */
+  domain?: DebateDomain;
 }
 
 export interface BoardNode {
@@ -66,6 +69,7 @@ export interface DebateSetup {
   litNodeIds: string[];
   boardNodes: BoardNode[];
   isCustom: boolean;
+  domain: DebateDomain;
 }
 
 function slugify(s: string): string {
@@ -140,7 +144,8 @@ export async function setupDebate(
     candidates = getDemoCandidates();
   } else {
     // Custom path: real Qloo scoring from /search entity data.
-    const custom = new CustomQlooAdapter();
+    const domain: DebateDomain = input!.domain ?? "dining";
+    const custom = new CustomQlooAdapter(domain);
     adapter = custom;
     group = await Promise.all(
       input!.people.map((p) =>
@@ -153,7 +158,7 @@ export async function setupDebate(
       id: `custom-${slugify(c.name)}-${i}`,
       name: c.name.trim(),
       cuisine: c.keywords.trim().split(",")[0]?.trim() || c.keywords.trim(),
-      priceTier: c.priceTier || "$$",
+      priceTier: c.priceTier || "",
       distanceMi: 0,
       rating: 0,
       keywords: c.keywords.trim(),
@@ -222,6 +227,7 @@ export async function setupDebate(
     litNodeIds,
     boardNodes,
     isCustom: useCustom,
+    domain: useCustom ? (input!.domain ?? "dining") : "dining",
   };
 }
 

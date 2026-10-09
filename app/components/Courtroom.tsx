@@ -15,9 +15,11 @@ import TugOfWar from "./TugOfWar";
 import Transcript from "./Transcript";
 import EvidenceBoard from "./EvidenceBoard";
 import VerdictBanner from "./VerdictBanner";
+import VetoInterruption from "./VetoInterruption";
 import type { DebateConfig } from "./SetupScreen";
 import { buildDisplayCandidates } from "./candidates";
 import { GavelIcon } from "./icons";
+import { saveVerdict } from "@/lib/history";
 
 type Status = "idle" | "connecting" | "streaming" | "done" | "error";
 
@@ -93,6 +95,7 @@ export default function Courtroom({
   const [score, setScore] = useState<ScoreEvent | null>(null);
   const [litNodes, setLitNodes] = useState<Set<string>>(new Set());
   const [vetoes, setVetoes] = useState<VetoEvent[]>([]);
+  const [vetoFlash, setVetoFlash] = useState<VetoEvent | null>(null);
   const [verdict, setVerdict] = useState<VerdictEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [apiCandidates, setApiCandidates] = useState<ApiCandidate[]>([]);
@@ -170,6 +173,7 @@ export default function Courtroom({
       // The custom debate config rides along on every call (stateless API).
       const fullBody = {
         ...body,
+        domain: config.domain,
         people: config.people,
         candidates: config.candidates,
       };
@@ -222,6 +226,7 @@ export default function Courtroom({
     setScore(null);
     setLitNodes(new Set());
     setVetoes([]);
+    setVetoFlash(null);
     setVerdict(null);
     setErrorMsg(null);
     setApiCandidates([]);
@@ -283,10 +288,18 @@ export default function Courtroom({
         })) as VerdictStageResponse;
         if (runIdRef.current !== runId) return;
 
+        const vetoEvents: VetoEvent[] = [];
         for (const veto of v.vetoes) {
           if (runIdRef.current !== runId) return;
           const evt: VetoEvent = { type: "veto", ...veto };
+          vetoEvents.push(evt);
+          // The objection takes the stage: a full-width interruption card
+          // holds the floor, then it joins the record and the debate moves on.
+          setVetoFlash(evt);
+          await pause(1800);
+          if (runIdRef.current !== runId) return;
           setVetoes((prev) => [...prev, evt]);
+          setVetoFlash(null);
           await pause(DRAMA_MS);
         }
         if (runIdRef.current !== runId) return;
@@ -301,6 +314,27 @@ export default function Courtroom({
           summary: v.summary,
         };
         setVerdict(verdictEvt);
+        // Persist to local history (best effort, client-only).
+        try {
+          const firstVeto = vetoEvents[0];
+          saveVerdict({
+            domain: config.domain,
+            people: config.people.map((p) => p.name),
+            candidates: config.candidates.map((c) => c.name),
+            winner: verdictEvt.winnerName ?? verdictEvt.winnerId,
+            veto: firstVeto
+              ? {
+                  by: firstVeto.by,
+                  candidate:
+                    firstVeto.candidateName ?? firstVeto.candidateId,
+                  reason: firstVeto.reason,
+                }
+              : null,
+            summary: verdictEvt.summary.replace(/^THE VERDICT:\s*/i, ""),
+          });
+        } catch {
+          // History is a nicety, never fatal.
+        }
         await pause(DRAMA_MS);
         if (runIdRef.current !== runId) return;
 
@@ -326,6 +360,7 @@ export default function Courtroom({
     setScore(null);
     setLitNodes(new Set());
     setVetoes([]);
+    setVetoFlash(null);
     setVerdict(null);
     setErrorMsg(null);
     seenScores.current = new Set();
@@ -343,14 +378,19 @@ export default function Courtroom({
   const showArena = status === "streaming" || status === "done" || status === "error";
   // Card data: live API candidates once the debate opens, else the setup form.
   const displayCandidates = buildDisplayCandidates(
-    apiCandidates.length > 0 ? apiCandidates : config.candidates
+    apiCandidates.length > 0 ? apiCandidates : config.candidates,
+    config.domain
   );
   const cardA = displayCandidates[0]!;
   const cardB = displayCandidates[1]!;
   const matchA = score ? score.a : cardA.initialMatch;
   const matchB = score ? score.b : cardB.initialMatch;
   const vetoedIds = new Set(vetoes.map((v) => v.candidateId));
-  const question = `Where do ${config.people.length} friends eat Friday night?`;
+  const isMovies = config.domain === "movies";
+  const question = isMovies
+    ? `What do ${config.people.length} friends watch Friday night?`
+    : `Where do ${config.people.length} friends eat Friday night?`;
+  const arenaNoun = isMovies ? "what the group watches" : "where the group eats";
 
   return (
     <div className="flex min-h-screen flex-col bg-court-bg text-court-text">
@@ -405,8 +445,8 @@ export default function Courtroom({
               The courtroom is empty
             </h2>
             <p className="mt-2 max-w-md text-[15px] text-court-muted">
-              Start the debate and two advocate agents will argue where the
-              group eats, citing live taste-graph evidence, until the judge
+              Start the debate and two advocate agents will argue{" "}
+              {arenaNoun}, citing live taste-graph evidence, until the judge
               delivers a verdict.
             </p>
             <button
@@ -489,6 +529,8 @@ export default function Courtroom({
                 groupSize={config.people.length}
               />
             </div>
+
+            {vetoFlash && <VetoInterruption veto={vetoFlash} />}
 
             <VerdictBanner vetoes={vetoes} verdict={verdict} />
           </>

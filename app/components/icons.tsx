@@ -69,6 +69,22 @@ export function SushiIcon(props: IconProps) {
   );
 }
 
+/** Film strip glyph for movies mode. Pure graphics, no letters. */
+export function FilmIcon(props: IconProps) {
+  return (
+    <Base {...props}>
+      {/* strip */}
+      <rect x="2.5" y="5" width="19" height="14" rx="1.5" />
+      {/* perforations top */}
+      <path d="M6 5v2.4M10 5v2.4M14 5v2.4M18 5v2.4" />
+      {/* perforations bottom */}
+      <path d="M6 16.6V19M10 16.6V19M14 16.6V19M18 16.6V19" />
+      {/* play triangle */}
+      <path d="M10.5 9.8v4.4l4-2.2-4-2.2Z" fill="currentColor" stroke="none" />
+    </Base>
+  );
+}
+
 /** Tag-shaped evidence chip glyph. */
 export function EvidenceIcon(props: IconProps) {
   return (

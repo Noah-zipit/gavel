@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { VetoEvent, VerdictEvent } from "@/lib/debate-events";
 import { GavelIcon } from "./icons";
 
@@ -8,9 +9,52 @@ interface VerdictBannerProps {
   verdict: VerdictEvent | null;
 }
 
+/** "is 0.18, below" -> 18. Defensive: veto reasons vary by adapter. */
+function vetoAffinityPct(reason: string): number | null {
+  const m = reason.match(/is\s+(\d?\.\d+)/);
+  if (m) {
+    const v = parseFloat(m[1]!);
+    if (Number.isFinite(v)) return Math.round(v <= 1 ? v * 100 : v);
+  }
+  const p = reason.match(/(\d+)\s*%/);
+  if (p) return parseInt(p[1]!, 10);
+  return null;
+}
+
+function buildShareText(
+  winnerName: string,
+  vetoes: VetoEvent[],
+  proofSteps: Array<{ step: string }>,
+  url: string
+): string {
+  const parts = [`THE VERDICT: ${winnerName} wins.`];
+  const veto = vetoes[vetoes.length - 1];
+  if (veto) {
+    const pct = vetoAffinityPct(veto.reason);
+    const name = veto.candidateName ?? veto.candidateId;
+    parts.push(
+      pct !== null
+        ? `${veto.by} vetoed ${name} (${pct}% affinity, below the group's line).`
+        : `${veto.by} vetoed ${name}.`
+    );
+  }
+  const top = proofSteps
+    .filter((s) => /%/.test(s.step))
+    .slice(0, 2)
+    .map((s) => s.step.trim());
+  if (top.length > 0) {
+    parts.push(`Strongest evidence: ${top.join("; ")}.`);
+  } else {
+    parts.push(`Decided by ${proofSteps.length} evidence points.`);
+  }
+  parts.push(`Settled by the AI Courtroom: ${url}`);
+  return parts.join(" ");
+}
+
 export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
   if (vetoes.length === 0 && !verdict) return null;
 
+  const [shared, setShared] = useState(false);
   const latestVeto = vetoes[vetoes.length - 1];
   const winnerName = verdict?.winnerName ?? verdict?.winnerId ?? "";
   const vetoedName = latestVeto?.candidateName ?? latestVeto?.candidateId ?? "";
@@ -29,6 +73,29 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
   const proofSteps = (verdict?.proofChain ?? []).filter(
     (s) => !/^verdict:/i.test(s.step.trim())
   );
+
+  const share = async () => {
+    const url =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const text = buildShareText(winnerName, vetoes, proofSteps, url);
+    // Web Share first (Android Chrome); clipboard fallback for desktop.
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // fall through to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setShared(true);
+      setTimeout(() => setShared(false), 2200);
+    } catch {
+      // Clipboard unavailable: nothing more to offer.
+    }
+  };
 
   return (
     <section
@@ -74,6 +141,15 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
               );
             })}
           </ol>
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={share}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-bg px-6 text-base font-bold text-court-gold"
+            >
+              {shared ? "Copied" : "Share verdict"}
+            </button>
+          </div>
         </div>
       ) : (
         latestVeto && (

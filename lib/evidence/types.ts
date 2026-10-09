@@ -1,6 +1,9 @@
 // Evidence domain types for the Disagreement Engine.
 // These interfaces are the contract shared by adapters, agents, and the debate API.
 
+/** What the group is deciding between. Drives Qloo entity types + UI copy. */
+export type DebateDomain = "dining" | "movies";
+
 export interface Person {
   id: string;
   name: string;

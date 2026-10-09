@@ -7,8 +7,9 @@
 //
 //   1. Each person seed (e.g. "sushi", "Ariana Grande") is resolved via
 //      /search to a Qloo entity with its tag set.
-//   2. Each candidate is resolved via /search (types=urn:entity:place) to a
-//      place entity with its tag set and popularity.
+//   2. Each candidate is resolved via /search to an entity with its tag set
+//      and popularity (types=urn:entity:place for dining,
+//      types=urn:entity:movie for movies).
 //   3. Affinity = weighted blend of:
 //      - keyword signal (0.60): do the person's taste keywords match the
 //        candidate's keywords/place tags? Negative seeds ("no sushi",
@@ -29,6 +30,7 @@ import {
 } from "./qloo";
 import type {
   Candidate,
+  DebateDomain,
   Evidence,
   EvidenceAdapter,
   Person,
@@ -70,20 +72,40 @@ const NEGATIVE_PATTERNS = [
   /avoid/i,
 ];
 
+const MOVIE_SYNONYMS: Record<string, string[]> = {
+  "sci-fi": ["science fiction", "scifi", "space", "futuristic", "sci fi"],
+  horror: ["scary", "thriller", "slasher", "ghost"],
+  comedy: ["funny", "humor", "laugh"],
+  romance: ["romantic", "love story", "love"],
+  drama: ["dramatic"],
+  action: ["adventure", "fight", "chase"],
+  musical: ["music", "songs", "singing", "dance"],
+  animation: ["animated", "anime", "cartoon"],
+  fantasy: ["magic", "epic", "quest"],
+  crime: ["gangster", "heist", "mafia"],
+};
+
 function tokenize(s: string): string[] {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 2);
+    .filter((w) => w.length > 2)
+    // Light plural normalization so "no musicals" matches a "musical" tag.
+    .map((w) =>
+      w.length > 4 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w
+    );
 }
 
-function expandWithSynonyms(tokens: string[]): Set<string> {
+function expandWithSynonyms(
+  tokens: string[],
+  synonyms: Record<string, string[]>
+): Set<string> {
   const out = new Set(tokens);
   for (const t of tokens) {
-    for (const [cuisine, syns] of Object.entries(CUISINE_SYNONYMS)) {
-      if (t === cuisine || syns.includes(t)) {
-        out.add(cuisine);
+    for (const [key, syns] of Object.entries(synonyms)) {
+      if (t === key || syns.includes(t)) {
+        out.add(key);
         for (const s of syns) out.add(s);
       }
     }
@@ -143,6 +165,18 @@ async function resolveSeed(raw: string): Promise<ResolvedSeed> {
 
 export class CustomQlooAdapter implements EvidenceAdapter {
   readonly name = "custom-qloo";
+  private readonly domain: DebateDomain;
+  private readonly entityType: string;
+  /** "place" for dining, "movie" for movies; used in evidence copy. */
+  private readonly entityNoun: string;
+  private readonly synonyms: Record<string, string[]>;
+
+  constructor(domain: DebateDomain = "dining") {
+    this.domain = domain;
+    this.entityType = domain === "movies" ? "urn:entity:movie" : "urn:entity:place";
+    this.entityNoun = domain === "movies" ? "movie" : "place";
+    this.synonyms = domain === "movies" ? MOVIE_SYNONYMS : CUISINE_SYNONYMS;
+  }
 
   async resolvePerson(seeds: string[]): Promise<CustomPerson> {
     const resolvedSeeds = await Promise.all(seeds.map(resolveSeed));
@@ -160,7 +194,7 @@ export class CustomQlooAdapter implements EvidenceAdapter {
     };
   }
 
-  private async resolveCandidatePlace(
+  private async resolveCandidateEntity(
     candidate: Candidate
   ): Promise<{ entity?: SearchResult; tags: string[] }> {
     // Prefer name + keywords for the lookup; fall back to name alone.
@@ -171,7 +205,7 @@ export class CustomQlooAdapter implements EvidenceAdapter {
     ];
     for (const qstr of queries) {
       try {
-        const hit = await searchEntity(qstr, "urn:entity:place");
+        const hit = await searchEntity(qstr, this.entityType);
         if (hit?.entity_id) {
           return { entity: hit, tags: tagLabels(hit.tags) };
         }
@@ -185,20 +219,21 @@ export class CustomQlooAdapter implements EvidenceAdapter {
   private scoreAffinity(
     person: CustomPerson,
     candidate: Candidate,
-    placeTags: string[],
+    entityTags: string[],
     popularity: number
   ): { affinity: number; pos: number; neg: number; overlap: number } {
-    // Candidate keyword universe: name + keywords + Qloo place tags, expanded.
+    // Candidate keyword universe: name + keywords + Qloo entity tags, expanded.
     const keywords = (candidate as CustomCandidate).keywords ?? "";
     const candTokens = expandWithSynonyms(
-      tokenize(`${candidate.name} ${keywords} ${placeTags.join(" ")}`)
+      tokenize(`${candidate.name} ${keywords} ${entityTags.join(" ")}`),
+      this.synonyms
     );
 
     let pos = 0;
     let neg = 0;
     const personTagSet = new Set<string>();
     for (const seed of person.resolvedSeeds) {
-      const seedTokens = expandWithSynonyms(tokenize(seed.term));
+      const seedTokens = expandWithSynonyms(tokenize(seed.term), this.synonyms);
       for (const t of seed.entity ? tagLabels(seed.entity.tags) : []) {
         for (const tok of tokenize(t)) personTagSet.add(tok);
       }
@@ -209,9 +244,9 @@ export class CustomQlooAdapter implements EvidenceAdapter {
       }
     }
 
-    const placeTagSet = new Set<string>();
-    for (const t of placeTags) for (const tok of tokenize(t)) placeTagSet.add(tok);
-    const overlap = jaccard(personTagSet, placeTagSet);
+    const entityTagSet = new Set<string>();
+    for (const t of entityTags) for (const tok of tokenize(t)) entityTagSet.add(tok);
+    const overlap = jaccard(personTagSet, entityTagSet);
 
     const keywordScore = Math.min(
       0.95,
@@ -238,8 +273,8 @@ export class CustomQlooAdapter implements EvidenceAdapter {
     if (!cp.resolvedSeeds) {
       throw new QlooUnavailableError("person was not resolved via CustomQlooAdapter");
     }
-    // Place resolution can flake under parallel load; retry once before
-    // giving up. If Qloo truly has no place for this candidate, score from
+    // Entity resolution can flake under parallel load; retry once before
+    // giving up. If Qloo truly has no entity for this candidate, score from
     // the user's own keywords (still real signal, no mock data).
     let place: { entity: SearchResult | null; tags: string[] } = {
       entity: null,
@@ -248,7 +283,7 @@ export class CustomQlooAdapter implements EvidenceAdapter {
     for (let attempt = 0; attempt < 2 && !place.entity?.entity_id; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
       try {
-        const resolved = await this.resolveCandidatePlace(candidate);
+        const resolved = await this.resolveCandidateEntity(candidate);
         place = { entity: resolved.entity ?? null, tags: resolved.tags };
       } catch {
         // try again or fall through to keyword-only scoring
@@ -256,6 +291,7 @@ export class CustomQlooAdapter implements EvidenceAdapter {
     }
     const entity = place.entity;
     const tags = place.tags;
+    const noun = this.entityNoun;
 
     const { affinity, pos, neg, overlap } = this.scoreAffinity(
       cp,
@@ -265,8 +301,8 @@ export class CustomQlooAdapter implements EvidenceAdapter {
     );
 
     const placeNote = entity
-      ? `Qloo entity matching: ${pos} taste keyword${pos === 1 ? "" : "s"} overlap${neg > 0 ? `, ${neg} dislike${neg === 1 ? "" : "s"} flagged` : ""} against ${candidate.name}'s Qloo place tags${tags.length ? ` (${tags.slice(0, 4).join(", ")})` : ""}.`
-      : `Keyword matching against ${candidate.name} (${pos} taste keyword${pos === 1 ? "" : "s"} overlap${neg > 0 ? `, ${neg} dislike${neg === 1 ? "" : "s"} flagged` : ""}); Qloo had no place entity for this name, so place tags were unavailable.`;
+      ? `Qloo entity matching: ${pos} taste keyword${pos === 1 ? "" : "s"} overlap${neg > 0 ? `, ${neg} dislike${neg === 1 ? "" : "s"} flagged` : ""} against ${candidate.name}'s Qloo ${noun} tags${tags.length ? ` (${tags.slice(0, 4).join(", ")})` : ""}.`
+      : `Keyword matching against ${candidate.name} (${pos} taste keyword${pos === 1 ? "" : "s"} overlap${neg > 0 ? `, ${neg} dislike${neg === 1 ? "" : "s"} flagged` : ""}); Qloo had no ${noun} entity for this name, so ${noun} tags were unavailable.`;
 
     const evidence: Evidence[] = [
       {
@@ -275,7 +311,7 @@ export class CustomQlooAdapter implements EvidenceAdapter {
         detail:
           pos > 0 || neg > 0
             ? placeNote
-            : `Qloo place tags for ${candidate.name}${tags.length ? ` (${tags.slice(0, 4).join(", ")})` : ""}; no direct keyword overlap with ${person.name}'s taste seeds, scored from tag similarity and place popularity.`,
+            : `Qloo ${noun} tags for ${candidate.name}${tags.length ? ` (${tags.slice(0, 4).join(", ")})` : ""}; no direct keyword overlap with ${person.name}'s taste seeds, scored from tag similarity and ${noun} popularity.`,
       },
     ];
     if (overlap > 0.02) {

@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     opponentArgs?: unknown;
     people?: unknown;
     candidates?: unknown;
+    domain?: unknown;
   };
   try {
     body = await request.json();
@@ -81,12 +82,15 @@ export async function POST(request: NextRequest) {
   const startB = typeof body.scoreB === "number" ? body.scoreB : 50;
 
   // Custom debate input (setup screen). Absent -> demo fixtures.
+  // Domain selects the Qloo entity type + UI copy ("dining" | "movies").
+  const domain = body.domain === "movies" ? "movies" : "dining";
   let customInput: CustomDebateInput | undefined;
   if (body.people !== undefined || body.candidates !== undefined) {
     if (!Array.isArray(body.people) || !Array.isArray(body.candidates)) {
       return bad("people and candidates must be arrays");
     }
     customInput = {
+      domain,
       people: (body.people as Array<Record<string, unknown>>).map((p) => ({
         name: String(p.name ?? ""),
         seeds: Array.isArray(p.seeds)
@@ -114,7 +118,7 @@ export async function POST(request: NextRequest) {
     if (stage !== "verdict") {
       const side: "A" | "B" = stage.endsWith("-b") ? "B" : "A";
       const candidate = side === "A" ? candidateA : candidateB;
-      const advocate = new Advocate(side, candidate);
+      const advocate = new Advocate(side, candidate, setup.domain);
       const scored = scoredByCandidate.get(candidate.id) ?? [];
 
       let args: Array<{ text: string; evidence: Evidence }>;
