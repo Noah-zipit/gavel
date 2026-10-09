@@ -320,8 +320,8 @@ export default function Courtroom() {
             {status === "connecting"
               ? "Convening…"
               : status === "streaming"
-                ? "Trial in session"
-                : "Start the trial"}
+                ? "Debate in progress"
+                : "Start the debate"}
           </button>
           <button
             type="button"
@@ -343,10 +343,10 @@ export default function Courtroom() {
           <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-court-border px-6 py-16 text-center">
             <GavelIcon className="h-12 w-12 text-court-muted" />
             <h2 className="mt-4 text-xl font-bold text-court-text">
-              No trial convened yet
+              The courtroom is empty
             </h2>
             <p className="mt-2 max-w-md text-[15px] text-court-muted">
-              Start the trial and two advocate agents will argue where the
+              Start the debate and two advocate agents will argue where the
               group eats, citing live taste-graph evidence, until the judge
               delivers a verdict.
             </p>
@@ -355,7 +355,7 @@ export default function Courtroom() {
               onClick={start}
               className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-[#15171c]"
             >
-              Start the trial
+              Start the debate
             </button>
           </div>
         )}
@@ -388,7 +388,7 @@ export default function Courtroom() {
                 className="rounded-lg border border-court-live bg-court-panel p-5"
               >
                 <h2 className="text-lg font-bold text-court-live">
-                  The trial failed
+                  The debate failed
                 </h2>
                 <p className="mt-1.5 text-[15px] text-court-text">{errorMsg}</p>
                 <button

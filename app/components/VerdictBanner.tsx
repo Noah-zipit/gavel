@@ -1,7 +1,6 @@
 "use client";
 
 import type { VetoEvent, VerdictEvent } from "@/lib/debate-events";
-import { formatWeight } from "@/lib/debate-events";
 import { candidateById } from "./candidates";
 import { GavelIcon } from "./icons";
 
@@ -16,11 +15,22 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
   const latestVeto = vetoes[vetoes.length - 1];
   const winner = verdict ? candidateById(verdict.winnerId) : undefined;
   const vetoed = latestVeto ? candidateById(latestVeto.candidateId) : undefined;
-  // The API summary opens with "THE VERDICT: <name>."; the banner already
-  // carries that title, so strip the duplicate lead-in.
+  // The API summary opens with "THE VERDICT: <name>." and then repeats the
+  // winner's name; the banner already carries the title and headline, so
+  // strip both duplicate lead-ins.
+  const winnerName = winner ? winner.name : (verdict?.winnerId ?? "");
   const summary = verdict
-    ? verdict.summary.replace(/^THE VERDICT:\s*/i, "")
+    ? verdict.summary
+        .replace(/^THE VERDICT:\s*/i, "")
+        .replace(new RegExp(`^${winnerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\s*`, "i"), "")
     : "";
+  // Proof chain cleanup: drop the trailing "Verdict: X wins" step (the
+  // headline already says it), and for affinity steps the evidence text
+  // duplicates the step ("92% affinity" vs "92% Italian alignment"), so show
+  // the step alone. Veto steps keep their reason — it carries new information.
+  const proofSteps = (verdict?.proofChain ?? []).filter(
+    (s) => !/^verdict:/i.test(s.step.trim())
+  );
 
   return (
     <section
@@ -50,18 +60,23 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
           </p>
           <p className="mt-1 text-[15px] font-medium">{summary}</p>
           <ol className="mt-4 flex flex-col gap-2">
-            {verdict.proofChain.map((step, i) => (
-              <li
-                key={i}
-                className="flex flex-wrap items-baseline gap-x-2 rounded bg-black/15 px-3 py-2 text-sm font-medium"
-              >
-                <span className="font-bold">{i + 1}.</span>
-                <span className="font-semibold">{step.step}</span>
-                <span className="opacity-80">
-                  {step.evidence} · {formatWeight(step.weight)}
-                </span>
-              </li>
-            ))}
+            {proofSteps.map((step, i) => {
+              // Affinity steps already carry their percentage in the step
+              // text; the evidence + raw weight would just repeat it.
+              const isAffinity = /%/.test(step.step);
+              return (
+                <li
+                  key={i}
+                  className="flex flex-wrap items-baseline gap-x-2 rounded bg-black/15 px-3 py-2 text-sm font-medium"
+                >
+                  <span className="font-bold">{i + 1}.</span>
+                  <span className="font-semibold">{step.step}</span>
+                  {!isAffinity && (
+                    <span className="opacity-80">{step.evidence}</span>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
       ) : (
