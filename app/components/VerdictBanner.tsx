@@ -25,7 +25,7 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
   // Proof chain cleanup: drop the trailing "Verdict: X wins" step (the
   // headline already says it), and for affinity steps the evidence text
   // duplicates the step ("92% affinity" vs "92% Italian alignment"), so show
-  // the step alone. Veto steps keep their reason — it carries new information.
+  // the step alone. Veto steps keep their reason, it carries new information.
   const proofSteps = (verdict?.proofChain ?? []).filter(
     (s) => !/^verdict:/i.test(s.step.trim())
   );
@@ -34,7 +34,7 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
     <section
       aria-label="The verdict"
       aria-live="polite"
-      className="stream-in rounded-lg bg-court-gold p-5 text-[#15171c] sm:p-6"
+      className="stream-in rounded-lg bg-court-gold p-5 text-court-bg sm:p-6"
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <div className="flex items-center gap-3">
@@ -45,7 +45,7 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
         </div>
 
         {verdict && (
-          <span className="ml-auto rounded bg-[#15171c] px-3 py-1.5 text-xs font-bold tracking-[0.18em] text-court-gold">
+          <span className="ml-auto rounded bg-court-bg px-3 py-1.5 text-xs font-bold tracking-[0.18em] text-court-gold">
             DECISION · FINAL
           </span>
         )}

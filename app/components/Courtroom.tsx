@@ -363,7 +363,7 @@ export default function Courtroom({
             type="button"
             onClick={start}
             disabled={busy}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-[#15171c] transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-court-bg transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
           >
             {status === "connecting"
               ? "Convening…"
@@ -412,7 +412,7 @@ export default function Courtroom({
             <button
               type="button"
               onClick={start}
-              className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-[#15171c]"
+              className="mt-6 inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-court-bg"
             >
               Start the debate
             </button>
@@ -453,7 +453,7 @@ export default function Courtroom({
                 <button
                   type="button"
                   onClick={start}
-                  className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-[#15171c]"
+                  className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-amber px-6 text-base font-bold text-court-bg"
                 >
                   Retry
                 </button>

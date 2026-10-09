@@ -15,20 +15,29 @@ late-night courtroom: solemn, dramatic, legible at phone distance.
 
 ## Design tokens (exact)
 
-| Token   | Value     | Use                                        |
-|---------|-----------|--------------------------------------------|
-| bg      | `#15171c` | Page background — dark charcoal, never pure black |
-| panel   | `#1d2026` | Cards, transcript blocks, board panels     |
-| border  | `#2a2e36` | Hairlines, dividers, card outlines         |
-| amber   | `#e8a33d` | Advocate A, Italian/pasta preference nodes, accent for A's evidence |
-| teal    | `#3fb6a8` | Advocate B, sushi preference nodes, accent for B's evidence |
-| gold    | `#d4af37` | THE VERDICT banner only — reserved for finality |
-| text    | `#f2f4f7` | Primary text                               |
-| muted   | `#9aa3b2` | Secondary text, labels, timestamps         |
-| live-red| `#e5484d` | LIVE indicator only — reserved for "on air" state |
+Linear-derived near-black product system: near-black canvas, a 4-step surface
+ladder, hairline borders, scarce accent, no gradients. Advocate opposition
+(amber vs teal) is kept from the approved mockup, retinted for near-black.
+
+| Token        | Value     | Use                                        |
+|--------------|-----------|--------------------------------------------|
+| bg           | `#08080c` | Page background — near-black canvas        |
+| panel        | `#0e0e13` | Cards, transcript blocks, board panels (surface-1) |
+| surface2     | `#131318` | Lifted cards, featured panels (surface-2)  |
+| surface3     | `#1a1a21` | Deepest lifted surface (surface-3)         |
+| border       | `#23252d` | Hairlines, dividers, card outlines        |
+| border-strong| `#34343a` | Stronger hairlines, input focus borders    |
+| amber        | `#dda02f` | Advocate A, accent for A's evidence       |
+| teal         | `#34b3a5` | Advocate B, accent for B's evidence        |
+| gold         | `#e0b83c` | THE VERDICT banner only — reserved for finality |
+| text         | `#f4f4f5` | Primary text                               |
+| muted        | `#a8adb8` | Secondary text, labels, timestamps         |
+| subtle       | `#6e7480` | Tertiary text, deselected states, footnotes |
+| live-red     | `#e5484d` | LIVE indicator only — reserved for "on air" state |
 
 Tokens live in `app/globals.css` as Tailwind v4 `@theme` entries
 (`--color-court-*`) and CSS vars. Never hardcode hex outside the token file.
+4th-candidate board tone is clay `#e07a5f` (kept, works on near-black).
 
 ## Hard rules
 

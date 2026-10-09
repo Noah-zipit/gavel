@@ -89,38 +89,40 @@ export default function SetupScreen({
     onStart(toConfig(people, candidates));
   };
 
-  const inputCls =
-    "w-full rounded-md border border-court-border bg-court-bg px-3 py-2.5 text-[15px] text-court-text placeholder:text-court-muted/60 focus:border-court-amber focus:outline-none";
+  const fieldCls =
+    "mt-2 min-h-[44px] w-full rounded-md border border-court-border bg-court-bg px-3 py-2.5 text-[15px] text-court-text placeholder:text-court-subtle focus:border-court-border-strong focus:outline-none";
 
   return (
     <div className="flex min-h-screen flex-col bg-court-bg text-court-text">
-      <header className="border-b border-court-border bg-court-panel">
+      <header className="border-b border-court-border">
         <div className="mx-auto flex max-w-6xl items-center gap-2.5 px-4 py-4 sm:px-6">
-          <GavelIcon className="h-8 w-8 shrink-0 text-court-amber" />
-          <p className="text-lg font-bold tracking-[0.18em]">
+          <GavelIcon className="h-7 w-7 shrink-0 text-court-amber" />
+          <p className="text-base font-bold tracking-[0.14em]">
             <span className="text-court-amber">AI</span>{" "}
             <span className="text-court-muted">COURTROOM</span>
           </p>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
-        <div>
-          <h1 className="text-2xl font-extrabold sm:text-3xl">
-            Set up the debate
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-12">
+        {/* Hero */}
+        <div className="max-w-2xl">
+          <p className="eyebrow text-court-amber">The Disagreement Engine</p>
+          <h1 className="display-tight mt-3 text-4xl font-bold text-court-text sm:text-5xl">
+            Settle the group chat.
           </h1>
-          <p className="mt-1.5 max-w-xl text-[15px] text-court-muted">
-            Add your people and what they like, add the options you are
-            deciding between. Two advocate agents will argue it out with live
-            taste-graph evidence.
+          <p className="mt-3 text-lg leading-relaxed text-court-muted">
+            Two advocate agents argue your options with live taste evidence.
+            The judge vetoes what the group cannot stand, then delivers a
+            verdict with receipts.
           </p>
         </div>
 
         {/* People */}
-        <section aria-label="Who is deciding">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold tracking-[0.18em] text-court-muted">
-              WHO&apos;S DECIDING · {people.length}
+        <section aria-label="Who is deciding" className="mt-10 sm:mt-12">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="eyebrow text-court-muted">
+              Who&apos;s deciding · {people.length}
             </h2>
             {people.length < 6 && (
               <button
@@ -128,17 +130,17 @@ export default function SetupScreen({
                 onClick={() =>
                   setPeople((prev) => [...prev, { name: "", keywords: "" }])
                 }
-                className="rounded-md border border-court-border px-3 py-1.5 text-sm font-semibold text-court-text hover:border-court-amber"
+                className="inline-flex min-h-[44px] items-center rounded-md border border-court-border bg-court-panel px-4 text-sm font-semibold text-court-text hover:border-court-border-strong"
               >
                 + Add person
               </button>
             )}
           </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {people.map((p, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-court-border bg-court-panel p-4"
+                className="rounded-lg border border-court-border bg-court-panel p-4 sm:p-5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <input
@@ -147,7 +149,7 @@ export default function SetupScreen({
                     onChange={(e) => setPerson(i, { name: e.target.value })}
                     placeholder="Name"
                     maxLength={24}
-                    className="w-full bg-transparent text-lg font-bold text-court-text placeholder:text-court-muted/50 focus:outline-none"
+                    className="display-tight w-full bg-transparent text-lg font-bold text-court-text placeholder:text-court-subtle focus:outline-none"
                   />
                   {people.length > 2 && (
                     <button
@@ -156,21 +158,21 @@ export default function SetupScreen({
                       onClick={() =>
                         setPeople((prev) => prev.filter((_, j) => j !== i))
                       }
-                      className="shrink-0 rounded px-2 py-1 text-sm font-bold text-court-muted hover:text-court-live"
+                      className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-sm font-bold text-court-subtle hover:text-court-live"
                     >
                       ✕
                     </button>
                   )}
                 </div>
-                <label className="mt-2 block text-xs font-semibold tracking-wide text-court-muted">
-                  TASTE KEYWORDS
+                <label className="eyebrow mt-3 block text-court-subtle">
+                  Taste keywords
                 </label>
                 <input
                   aria-label={`${p.name || `Person ${i + 1}`} taste keywords`}
                   value={p.keywords}
                   onChange={(e) => setPerson(i, { keywords: e.target.value })}
-                  placeholder="sushi, jazz, anime — or 'no raw fish' to veto"
-                  className={`${inputCls} mt-1`}
+                  placeholder="sushi, jazz, anime, or 'no raw fish' to veto"
+                  className={fieldCls}
                 />
               </div>
             ))}
@@ -178,10 +180,10 @@ export default function SetupScreen({
         </section>
 
         {/* Candidates */}
-        <section aria-label="Deciding between">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold tracking-[0.18em] text-court-muted">
-              DECIDING BETWEEN · {candidates.length}
+        <section aria-label="Deciding between" className="mt-10 sm:mt-12">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="eyebrow text-court-muted">
+              Deciding between · {candidates.length}
             </h2>
             {candidates.length < 4 && (
               <button
@@ -192,22 +194,20 @@ export default function SetupScreen({
                     { name: "", keywords: "", priceTier: "$$" },
                   ])
                 }
-                className="rounded-md border border-court-border px-3 py-1.5 text-sm font-semibold text-court-text hover:border-court-teal"
+                className="inline-flex min-h-[44px] items-center rounded-md border border-court-border bg-court-panel px-4 text-sm font-semibold text-court-text hover:border-court-border-strong"
               >
                 + Add option
               </button>
             )}
           </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {candidates.map((c, i) => {
               const accent =
                 i % 2 === 0 ? "text-court-amber" : "text-court-teal";
-              const border =
-                i % 2 === 0 ? "focus:border-court-amber" : "focus:border-court-teal";
               return (
                 <div
                   key={i}
-                  className="rounded-lg border border-court-border bg-court-panel p-4"
+                  className="rounded-lg border border-court-border bg-court-panel p-4 sm:p-5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <input
@@ -216,7 +216,7 @@ export default function SetupScreen({
                       onChange={(e) => setCandidate(i, { name: e.target.value })}
                       placeholder="Restaurant or hotel name"
                       maxLength={40}
-                      className={`w-full bg-transparent text-lg font-bold ${accent} placeholder:text-court-muted/50 focus:outline-none`}
+                      className={`display-tight w-full bg-transparent text-lg font-bold ${accent} placeholder:text-court-subtle focus:outline-none`}
                     />
                     {candidates.length > 2 && (
                       <button
@@ -227,14 +227,14 @@ export default function SetupScreen({
                             prev.filter((_, j) => j !== i)
                           )
                         }
-                        className="shrink-0 rounded px-2 py-1 text-sm font-bold text-court-muted hover:text-court-live"
+                        className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-sm font-bold text-court-subtle hover:text-court-live"
                       >
                         ✕
                       </button>
                     )}
                   </div>
-                  <label className="mt-2 block text-xs font-semibold tracking-wide text-court-muted">
-                    KEYWORDS
+                  <label className="eyebrow mt-3 block text-court-subtle">
+                    Keywords
                   </label>
                   <input
                     aria-label={`${c.name || `Option ${i + 1}`} keywords`}
@@ -242,11 +242,11 @@ export default function SetupScreen({
                     onChange={(e) =>
                       setCandidate(i, { keywords: e.target.value })
                     }
-                    placeholder="Italian restaurant, pizza — or beach hotel, luxury"
-                    className={`${inputCls} ${border} mt-1`}
+                    placeholder="Italian restaurant, pizza, or beach hotel, luxury"
+                    className={fieldCls}
                   />
                   <div
-                    className="mt-3 flex gap-2"
+                    className="mt-3 grid grid-cols-3 gap-1 rounded-md border border-court-border bg-court-bg p-1"
                     role="radiogroup"
                     aria-label="Price tier"
                   >
@@ -257,10 +257,10 @@ export default function SetupScreen({
                         role="radio"
                         aria-checked={c.priceTier === t}
                         onClick={() => setCandidate(i, { priceTier: t })}
-                        className={`min-h-[40px] flex-1 rounded-md border px-3 text-sm font-bold ${
+                        className={`inline-flex min-h-[44px] items-center justify-center rounded px-3 text-sm font-bold ${
                           c.priceTier === t
-                            ? "border-court-amber bg-court-amber/15 text-court-amber"
-                            : "border-court-border text-court-muted"
+                            ? "bg-court-surface3 text-court-text"
+                            : "text-court-subtle hover:text-court-muted"
                         }`}
                       >
                         {t}
@@ -274,24 +274,32 @@ export default function SetupScreen({
         </section>
 
         {error && (
-          <p role="alert" className="text-sm font-semibold text-court-live">
+          <p role="alert" className="mt-6 text-sm font-semibold text-court-live">
             {error}
           </p>
         )}
 
-        <div className="pb-4">
+        {/* Start */}
+        <div className="mt-10 border-t border-court-border pt-6 sm:mt-12">
           <button
             type="button"
             onClick={start}
-            className="inline-flex min-h-[52px] w-full items-center justify-center rounded-md bg-court-amber px-6 text-lg font-bold text-[#15171c] sm:w-auto sm:px-10"
+            className="inline-flex min-h-[52px] w-full items-center justify-center rounded-md bg-court-amber px-8 text-lg font-bold text-court-bg sm:w-auto"
           >
             Start the debate
           </button>
-          <p className="mt-2 text-sm text-court-muted">
+          <p className="mt-3 text-sm text-court-muted">
             Tip: add a dislike like “no sushi” to watch the judge veto it live.
           </p>
         </div>
       </main>
+
+      <footer className="border-t border-court-border">
+        <p className="mx-auto max-w-6xl px-4 py-4 text-sm text-court-subtle sm:px-6">
+          Gavel · The Disagreement Engine. Two advocates argue, one judge
+          rules, every claim carries its evidence.
+        </p>
+      </footer>
     </div>
   );
 }

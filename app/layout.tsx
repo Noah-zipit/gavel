@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gavel — AI Courtroom",
+  title: "Gavel · AI Courtroom",
   description:
     "Two advocate AI agents argue a group decision with real taste-graph evidence while a judge rules with receipts.",
 };

@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-court-bg: #15171c;
-  --color-court-panel: #1d2026;
-  --color-court-border: #2a2e36;
-  --color-court-amber: #e8a33d;
-  --color-court-teal: #3fb6a8;
-  --color-court-gold: #d4af37;
-  --color-court-text: #f2f4f7;
-  --color-court-muted: #9aa3b2;
+  --color-court-bg: #08080c;
+  --color-court-panel: #0e0e13;
+  --color-court-surface2: #131318;
+  --color-court-surface3: #1a1a21;
+  --color-court-border: #23252d;
+  --color-court-border-strong: #34343a;
+  --color-court-amber: #dda02f;
+  --color-court-teal: #34b3a5;
+  --color-court-gold: #e0b83c;
+  --color-court-text: #f4f4f5;
+  --color-court-muted: #a8adb8;
+  --color-court-subtle: #6e7480;
   --color-court-live: #e5484d;
 
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -16,14 +20,18 @@
 }
 
 :root {
-  --court-bg: #15171c;
-  --court-panel: #1d2026;
-  --court-border: #2a2e36;
-  --court-amber: #e8a33d;
-  --court-teal: #3fb6a8;
-  --court-gold: #d4af37;
-  --court-text: #f2f4f7;
-  --court-muted: #9aa3b2;
+  --court-bg: #08080c;
+  --court-panel: #0e0e13;
+  --court-surface2: #131318;
+  --court-surface3: #1a1a21;
+  --court-border: #23252d;
+  --court-border-strong: #34343a;
+  --court-amber: #dda02f;
+  --court-teal: #34b3a5;
+  --court-gold: #e0b83c;
+  --court-text: #f4f4f5;
+  --court-muted: #a8adb8;
+  --court-subtle: #6e7480;
   --court-live: #e5484d;
 }
 
@@ -122,7 +130,7 @@ body {
 
 /* Evidence board lit node glow */
 .node-glow {
-  filter: drop-shadow(0 0 8px var(--node-color, #e8a33d));
+  filter: drop-shadow(0 0 8px var(--node-color, #dda02f));
 }
 
 .node-lit {
@@ -132,7 +140,21 @@ body {
 /* Visible keyboard focus everywhere */
 button:focus-visible,
 a:focus-visible,
-[tabindex]:focus-visible {
+[tabindex]:focus-visible,
+input:focus-visible {
   outline: 2px solid var(--court-amber);
   outline-offset: 2px;
+}
+
+/* Linear-style eyebrow: 13px, medium, positive tracking, uppercase */
+.eyebrow {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Display type: measured negative tracking */
+.display-tight {
+  letter-spacing: -0.02em;
 }

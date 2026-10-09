@@ -13,7 +13,7 @@ export default function Header({ live, question }: HeaderProps) {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 sm:px-6">
         <div className="flex items-center gap-2.5">
           <GavelIcon className="h-8 w-8 shrink-0 text-court-amber" />
-          <p className="text-lg font-bold tracking-[0.18em]">
+          <p className="text-base font-bold tracking-[0.14em]">
             <span className="text-court-amber">AI</span>{" "}
             <span className="text-court-muted">COURTROOM</span>
           </p>

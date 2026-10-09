@@ -16,8 +16,8 @@ interface TranscriptProps {
 function Bubble({ item, index }: { item: ArgumentEvent; index: number }) {
   const isA = item.side === "a";
   const bubble = isA
-    ? "bg-court-amber text-[#15171c]"
-    : "bg-court-teal text-[#15171c]";
+    ? "bg-court-amber text-court-bg"
+    : "bg-court-teal text-court-bg";
   const chip = "bg-black/20";
   // The evidence label often already carries its own percentage
   // ("Alex's taste graph: 92% Italian alignment"); only append the
@@ -79,9 +79,7 @@ export default function Transcript({ items, streaming }: TranscriptProps) {
       className="flex min-h-0 flex-col rounded-lg border border-court-border bg-court-panel p-4 sm:p-5"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-bold tracking-[0.18em] text-court-muted">
-          LIVE DEBATE TRANSCRIPT
-        </h2>
+        <h2 className="eyebrow text-court-muted">Live debate transcript</h2>
         <p className="text-xs font-semibold tracking-widest text-court-muted">
           <span className="text-court-teal" aria-hidden="true">
             ●

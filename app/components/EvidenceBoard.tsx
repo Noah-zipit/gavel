@@ -11,9 +11,9 @@ export interface BoardNode {
 }
 
 const TONES = [
-  { stroke: "#e8a33d", dim: "rgba(232,163,61,0.35)" }, // amber
-  { stroke: "#3fb6a8", dim: "rgba(63,182,168,0.35)" }, // teal
-  { stroke: "#d4af37", dim: "rgba(212,175,55,0.35)" }, // gold
+  { stroke: "#dda02f", dim: "rgba(221,160,47,0.35)" }, // amber
+  { stroke: "#34b3a5", dim: "rgba(52,179,165,0.35)" }, // teal
+  { stroke: "#e0b83c", dim: "rgba(224,184,60,0.35)" }, // gold
   { stroke: "#e07a5f", dim: "rgba(224,122,95,0.35)" }, // clay
 ] as const;
 
@@ -72,6 +72,72 @@ function shortName(s: string, max = 10): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
+/**
+ * Mobile layout: the node graph collapses into a dense affinity list on
+ * phone widths. The graph's radial ring leaves the middle empty and its
+ * labels shrink to illegible sizes; the list keeps every row legible and
+ * still lights up as the advocates cite evidence.
+ */
+function MobileList({
+  nodes,
+  litNodes,
+}: {
+  nodes: BoardNode[];
+  litNodes: Set<string>;
+}) {
+  return (
+    <ul className="flex flex-col gap-2 sm:hidden">
+      {nodes.map((n) => {
+        const tone = TONES[n.candidateIndex % TONES.length]!;
+        const lit = litNodes.has(n.id);
+        return (
+          <li
+            key={n.id}
+            className={`rounded-md border px-3 py-2.5 ${
+              lit
+                ? "border-court-border-strong bg-court-panel"
+                : "border-court-border bg-court-bg opacity-60"
+            }`}
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-court-text">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: lit ? tone.stroke : tone.dim }}
+                />
+                <span className="truncate">{n.personName}</span>
+              </p>
+              <p
+                className="shrink-0 text-sm font-bold"
+                style={{ color: lit ? tone.stroke : "var(--court-muted)" }}
+              >
+                {n.weight}%
+              </p>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-court-muted">
+              {n.candidateName} affinity
+            </p>
+            <div
+              className="mt-2 h-1.5 overflow-hidden rounded-full bg-court-border/60"
+              role="img"
+              aria-label={`${n.personName}: ${n.weight}% affinity with ${n.candidateName}`}
+            >
+              <div
+                className="h-full rounded-full transition-[width] duration-500"
+                style={{
+                  width: `${n.weight}%`,
+                  background: lit ? tone.stroke : tone.dim,
+                }}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function EvidenceBoard({
   litNodes,
   nodes,
@@ -85,21 +151,21 @@ export default function EvidenceBoard({
       aria-label="Evidence board"
       className="flex min-h-0 flex-col rounded-lg border border-court-border bg-court-panel p-4 sm:p-5"
     >
-      <h2 className="mb-3 text-sm font-bold tracking-[0.18em] text-court-muted">
-        EVIDENCE BOARD
-      </h2>
+      <h2 className="eyebrow mb-3 text-court-muted">Evidence board</h2>
 
       {placed.length === 0 ? (
         <p className="py-10 text-center text-sm text-court-muted">
           Nodes light up as the advocates cite taste evidence.
         </p>
       ) : (
-        <svg
-          viewBox="0 0 440 380"
-          role="img"
-          aria-label={`Taste preference graph for ${groupSize} people across ${toneCount} options.`}
-          className="h-auto w-full"
-        >
+        <>
+          <MobileList nodes={placed} litNodes={litNodes} />
+          <svg
+            viewBox="0 0 440 380"
+            role="img"
+            aria-label={`Taste preference graph for ${groupSize} people across ${toneCount} options.`}
+            className="hidden h-auto w-full sm:block"
+          >
           {placed.map((n) => {
             const tone = TONES[n.candidateIndex % TONES.length]!;
             const lit = litNodes.has(n.id);
@@ -126,7 +192,7 @@ export default function EvidenceBoard({
                   cx={n.x}
                   cy={n.y}
                   r={30}
-                  fill="#1d2026"
+                  fill="var(--court-panel)"
                   stroke={lit ? tone.stroke : tone.dim}
                   strokeWidth={lit ? 3 : 2}
                   className={lit ? "node-glow" : undefined}
@@ -140,7 +206,7 @@ export default function EvidenceBoard({
                   x={n.x}
                   y={n.y - 8}
                   textAnchor="middle"
-                  fill="#f2f4f7"
+                  fill="var(--court-text)"
                   fontSize="13"
                   fontWeight="700"
                 >
@@ -160,7 +226,7 @@ export default function EvidenceBoard({
                   x={n.x}
                   y={n.y + 22}
                   textAnchor="middle"
-                  fill="#9aa3b2"
+                  fill="var(--court-muted)"
                   fontSize="11"
                   fontWeight="600"
                 >
@@ -175,15 +241,15 @@ export default function EvidenceBoard({
               cx={CENTER.x}
               cy={CENTER.y}
               r={38}
-              fill="#15171c"
-              stroke="#d4af37"
+              fill="var(--court-bg)"
+              stroke="var(--court-gold)"
               strokeWidth={2.5}
             />
             <text
               x={CENTER.x}
               y={CENTER.y - 2}
               textAnchor="middle"
-              fill="#f2f4f7"
+              fill="var(--court-text)"
               fontSize="16"
               fontWeight="800"
             >
@@ -193,7 +259,7 @@ export default function EvidenceBoard({
               x={CENTER.x}
               y={CENTER.y + 16}
               textAnchor="middle"
-              fill="#f2f4f7"
+              fill="var(--court-text)"
               fontSize="12"
               fontWeight="700"
               letterSpacing="1"
@@ -202,6 +268,7 @@ export default function EvidenceBoard({
             </text>
           </g>
         </svg>
+        </>
       )}
 
       <div className="mt-3 border-t border-court-border pt-3 text-sm text-court-muted">
