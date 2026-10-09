@@ -4,6 +4,12 @@ Two advocate agents argue your options using real taste evidence. A judge agent 
 
 Live demo: https://gavel-undeadash1010.vercel.app
 
+## Demo video
+
+A 44-second narrated walkthrough: setup, the live debate, a judge veto, the verdict, and the shareable verdict card.
+
+[Watch the demo](demo/gavel-demo.mp4)
+
 ## What it does
 
 You enter your group (2–6 people, each with a few taste keywords) and what you are deciding between (2–4 restaurants, or switch to Movies mode for films). Then the courtroom convenes:
