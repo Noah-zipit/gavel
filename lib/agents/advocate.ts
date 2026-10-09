@@ -70,7 +70,7 @@ export class Advocate {
         const prompt =
           `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
           `(${this.candidate.cuisine}, ${this.candidate.priceTier}) as tonight's group dinner pick. ` +
-          `Write ONE forceful opening argument (2-3 sentences) grounded ONLY in the evidence below. ` +
+          `Write ONE forceful opening argument (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
           `Cite the evidence label and its weight naturally. No em dashes. ` +
           this.evidenceJsonBlock("opening", e);
         const text = await this.llm.generate(prompt);
@@ -96,7 +96,7 @@ export class Advocate {
         const prompt =
           `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
           `(${this.candidate.cuisine}, ${this.candidate.priceTier}). The opposition just argued: ` +
-          `"${opponentSummary}" Rebut it in ONE sharp rebuttal (2-3 sentences) grounded ONLY in the ` +
+          `"${opponentSummary}" Rebut it in ONE sharp rebuttal (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
           `evidence below. Cite the evidence label and weight naturally. No em dashes. ` +
           this.evidenceJsonBlock("rebuttal", e, opponentSummary);
         const text = await this.llm.generate(prompt);

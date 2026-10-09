@@ -28,7 +28,7 @@ function nimBaseUrl(): string {
 }
 
 function nimModel(): string {
-  return process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
+  return process.env.NVIDIA_MODEL ?? "moonshotai/kimi-k3";
 }
 
 function nimApiKey(): string | undefined {
@@ -37,29 +37,77 @@ function nimApiKey(): string | undefined {
 
 // NimAdapter: NVIDIA NIM via its OpenAI-compatible chat completions endpoint.
 // The default model is a reasoning model that emits its thinking trace, so we
-// ask it to wrap the final argument in [ARGUMENT]...[/ARGUMENT] markers and
-// extract the last block. Falls back to cleaned raw text if no marker found.
+// ask it to wrap the final argument in [ARGUMENT]...[/ARGUMENT] markers.
+// Extraction tries, in order: the last *usable* marker block, then the last
+// "Drafting - Attempt N:" draft from the thinking trace (the model's own
+// final draft is usually clean courtroom prose).
 export class NimAdapter implements LlmAdapter {
-  private stripThinking(text: string): string {
-    const blocks = text.match(/\[ARGUMENT\]([\s\S]*?)\[\/ARGUMENT\]/g);
-    if (blocks && blocks.length > 0) {
-      const last = blocks[blocks.length - 1]!;
-      return last
-        .replace(/\[ARGUMENT\]/, "")
-        .replace(/\[\/ARGUMENT\]/, "")
-        .trim();
+  // Pull the model's final draft out of its thinking trace, e.g.
+  //   4.  **Drafting - Attempt 2:**
+  //      <argument sentences>
+  //
+  //      Check constraints:
+  private extractAttemptBlock(text: string): string | null {
+    const re =
+      /Drafting - Attempt \d+:\*\*\s*\n([\s\S]*?)(?=\n\s*Check constraints:|\n\s*\d+\.\s+\*\*|$)/g;
+    let last: string | null = null;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      last = m[1];
     }
-    // No markers: drop a leading thinking-trace header if present.
-    return text
-      .replace(/^Here's a thinking process:[\s\S]*?\n\n(?=\S)/, "")
+    if (!last) return null;
+    const cleaned = last
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+      .join(" ")
       .trim();
+    return cleaned || null;
+  }
+
+  private candidateBlocks(text: string): string[] {
+    const out: string[] = [];
+    const markerRe = /\[ARGUMENT\]([\s\S]*?)\[\/ARGUMENT\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = markerRe.exec(text)) !== null) {
+      out.push(m[1].trim());
+    }
+    const attempt = this.extractAttemptBlock(text);
+    if (attempt) out.push(attempt);
+    return out;
+  }
+
+  private stripThinking(text: string): string {
+    // Last usable block wins: a truncated final marker must not poison
+    // extraction when an earlier complete draft exists.
+    const blocks = this.candidateBlocks(text);
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (this.isUsableArgument(blocks[i]!)) return blocks[i]!;
+    }
+    // No markers or drafts: non-reasoning models (e.g. kimi-k3) answer
+    // directly. As long as it isn't a thinking trace, the raw text is the
+    // argument.
+    const t = text.trim();
+    if (!/^here's a thinking process:/i.test(t) && this.isUsableArgument(t)) {
+      return t;
+    }
+    return "";
+  }
+
+  private isReasoningModel(): boolean {
+    const m = nimModel().toLowerCase();
+    return m.includes("nemotron") || m.includes("reasoning");
   }
 
   private isUsableArgument(text: string): boolean {
     const t = text.trim();
-    return (
-      t.length >= 40 && !/your argument here/i.test(t) && !/^\[ARGUMENT\]/.test(t)
-    );
+    if (t.length < 60 || t.length > 1200) return false;
+    if (/your argument here/i.test(t)) return false;
+    // Token salad: a glitching model emits control tokens like <|close|>.
+    if ((t.match(/<\|[^|]*\|>/g) || []).length >= 2) return false;
+    // Must read like prose: at least one substantial sentence.
+    const sentences = t.split(/[.!?]/).map((s) => s.trim()).filter((s) => s.length > 20);
+    return sentences.length >= 1;
   }
 
   async generate(prompt: string): Promise<string> {
@@ -67,14 +115,17 @@ export class NimAdapter implements LlmAdapter {
     if (!key) {
       throw new Error("NVIDIA_API_KEY is not set");
     }
-    const instruction =
-      "\n\nThink step by step. Then write your FINAL 2-3 sentence argument " +
-      "between [ARGUMENT] and [/ARGUMENT] markers. Put only the argument " +
-      "sentences between the markers, no placeholder text. No em dashes.";
-    // One retry: reasoning models occasionally echo the placeholder or get
-    // cut off mid-thinking.
+    // Reasoning models need the marker wrapper so we can strip the thinking
+    // trace; direct models (kimi-k3) answer cleanly without it — and the
+    // marker instruction can push them into degenerate output.
+    const instruction = this.isReasoningModel()
+      ? "\n\nThink briefly (a few steps at most). Then write your FINAL 2-3 " +
+        "sentence argument between [ARGUMENT] and [/ARGUMENT] markers. Put " +
+        "only the argument sentences between the markers, no placeholder " +
+        "text. No em dashes."
+      : "";
     let lastError: unknown = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
       try {
@@ -88,7 +139,7 @@ export class NimAdapter implements LlmAdapter {
             model: nimModel(),
             messages: [{ role: "user", content: prompt + instruction }],
             temperature: 0.7,
-            max_tokens: 1200,
+            max_tokens: 600,
           }),
           signal: controller.signal,
         });

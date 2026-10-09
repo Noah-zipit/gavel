@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  parseDebateEvent,
-  type ArgumentEvent,
-  type DebateEvent,
-  type EvidenceEvent,
-  type ScoreEvent,
-  type VetoEvent,
-  type VerdictEvent,
+import type {
+  ArgumentEvent,
+  DebateSide,
+  EvidenceEvent,
+  ScoreEvent,
+  VetoEvent,
+  VerdictEvent,
 } from "@/lib/debate-events";
 import Header from "./Header";
 import CandidateCard from "./CandidateCard";
@@ -21,7 +20,42 @@ import { GavelIcon } from "./icons";
 
 type Status = "idle" | "connecting" | "streaming" | "done" | "error";
 
-const STREAM_URL = "/api/debate?group=friends-lahore";
+const STAGE_URL = "/api/debate/stage";
+const DRAMA_MS = 700;
+
+interface StageArgument {
+  text: string;
+  evidence: { label: string; weight: number; detail?: string };
+}
+
+interface StageScore {
+  a: number;
+  b: number;
+  delta: number;
+  reason: string;
+}
+
+interface ArgumentStageResponse {
+  stage: string;
+  round: string;
+  side: string;
+  arguments: StageArgument[];
+  scores: StageScore[];
+  scoreA: number;
+  scoreB: number;
+  litNodes?: string[];
+}
+
+interface VerdictStageResponse {
+  stage: string;
+  vetoes: Array<{ candidateId: string; by: string; reason: string }>;
+  verdict: { winnerId: string; loserId: string };
+  proofChain: Array<{ step: string; evidence: string; weight: number }>;
+  summary: string;
+}
+
+const pause = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function scoreKey(e: ScoreEvent) {
   return `${e.a}|${e.b}|${e.delta}|${e.reason}`;
@@ -36,60 +70,116 @@ export default function Courtroom() {
   const [verdict, setVerdict] = useState<VerdictEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const esRef = useRef<EventSource | null>(null);
-  const doneRef = useRef(false);
+  const runIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const seenScores = useRef<Set<string>>(new Set());
 
-  const closeStream = useCallback(() => {
-    esRef.current?.close();
-    esRef.current = null;
+  const stopRun = useCallback(() => {
+    runIdRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
   }, []);
 
-  const handleEvent = useCallback((evt: DebateEvent) => {
-    switch (evt.type) {
-      case "argument":
+  const pushScore = useCallback((s: StageScore) => {
+    const evt: ScoreEvent = { type: "score", ...s };
+    const key = scoreKey(evt);
+    if (seenScores.current.has(key)) return;
+    seenScores.current.add(key);
+    setScore(evt);
+  }, []);
+
+  const playArgumentStage = useCallback(
+    async (
+      runId: number,
+      res: ArgumentStageResponse,
+      round: string,
+      side: DebateSide
+    ): Promise<{ scoreA: number; scoreB: number; args: StageArgument[] }> => {
+      // Light the evidence board once, when the trial opens.
+      if (res.litNodes) {
+        for (const nodeId of res.litNodes) {
+          if (runIdRef.current !== runId) return { scoreA: res.scoreA, scoreB: res.scoreB, args: [] };
+          const evt: EvidenceEvent = { type: "evidence", nodeId, lit: true };
+          setLitNodes((prev) => new Set(prev).add(evt.nodeId));
+          await pause(DRAMA_MS);
+        }
+      }
+      for (let i = 0; i < res.arguments.length; i++) {
+        if (runIdRef.current !== runId) break;
+        const a = res.arguments[i]!;
+        const evt: ArgumentEvent = {
+          type: "argument",
+          round,
+          side,
+          text: a.text,
+          evidence: {
+            label: a.evidence.label,
+            weight: a.evidence.weight,
+            detail: a.evidence.detail,
+          },
+        };
         setArgs((prev) => [...prev, evt]);
-        break;
-      case "score": {
-        const key = scoreKey(evt);
-        if (seenScores.current.has(key)) break;
-        seenScores.current.add(key);
-        setScore(evt);
-        break;
+        await pause(DRAMA_MS);
+        const s = res.scores[i];
+        if (s) pushScore(s);
+        await pause(DRAMA_MS);
       }
-      case "evidence": {
-        const e: EvidenceEvent = evt;
-        setLitNodes((prev) => {
-          const next = new Set(prev);
-          if (e.lit) next.add(e.nodeId);
-          else next.delete(e.nodeId);
-          return next;
-        });
-        break;
+      return { scoreA: res.scoreA, scoreB: res.scoreB, args: res.arguments };
+    },
+    [pushScore]
+  );
+
+  const callStage = useCallback(
+    async (
+      runId: number,
+      body: Record<string, unknown>
+    ): Promise<ArgumentStageResponse | VerdictStageResponse> => {
+      // One retry: serverless functions can cold-start or hit a slow NIM
+      // call; stages are stateless and idempotent, so retrying is safe.
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) await pause(1500);
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+        try {
+          const res = await fetch(STAGE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: ctrl.signal,
+          });
+          if (!res.ok) {
+            let detail = "";
+            try {
+              const data = await res.json();
+              detail = typeof data.error === "string" ? `: ${data.error}` : "";
+            } catch {
+              // ignore
+            }
+            throw new Error(
+              `stage "${String(body.stage)}" failed (HTTP ${res.status})${detail}`
+            );
+          }
+          return (await res.json()) as ArgumentStageResponse | VerdictStageResponse;
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") throw err;
+          lastError = err;
+        }
       }
-      case "veto":
-        setVetoes((prev) => [...prev, evt]);
-        break;
-      case "verdict":
-        setVerdict(evt);
-        break;
-      case "done":
-        doneRef.current = true;
-        closeStream();
-        setStatus("done");
-        break;
-      case "error":
-        doneRef.current = true;
-        closeStream();
-        setErrorMsg(evt.message);
-        setStatus("error");
-        break;
-    }
-  }, [closeStream]);
+      throw lastError instanceof Error
+        ? lastError
+        : new Error(`stage "${String(body.stage)}" failed`);
+    },
+    []
+  );
 
   const start = useCallback(() => {
-    // Duplicate-submission prevention: a live stream is never opened twice.
-    if (esRef.current) return;
+    // Duplicate-submission prevention: a live run is never started twice.
+    if (abortRef.current) return;
+
+    stopRun();
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
 
     setArgs([]);
     setScore(null);
@@ -98,35 +188,99 @@ export default function Courtroom() {
     setVerdict(null);
     setErrorMsg(null);
     seenScores.current = new Set();
-    doneRef.current = false;
     setStatus("connecting");
 
-    const es = new EventSource(STREAM_URL);
-    esRef.current = es;
+    (async () => {
+      try {
+        let scoreA = 50;
+        let scoreB = 50;
 
-    es.onopen = () => setStatus("streaming");
+        setStatus("streaming");
 
-    es.onmessage = (m: MessageEvent<string>) => {
-      const evt = parseDebateEvent(m.data);
-      if (evt) handleEvent(evt);
-    };
+        const openingA = (await callStage(runId, {
+          stage: "opening-a",
+          scoreA,
+          scoreB,
+        })) as ArgumentStageResponse;
+        let out = await playArgumentStage(runId, openingA, "opening", "a");
+        if (runIdRef.current !== runId) return;
+        scoreA = out.scoreA;
+        scoreB = out.scoreB;
+        const argsA = out.args;
 
-    es.onerror = () => {
-      const finished = doneRef.current;
-      closeStream();
-      if (finished) {
+        const openingB = (await callStage(runId, {
+          stage: "opening-b",
+          scoreA,
+          scoreB,
+        })) as ArgumentStageResponse;
+        out = await playArgumentStage(runId, openingB, "opening", "b");
+        if (runIdRef.current !== runId) return;
+        scoreA = out.scoreA;
+        scoreB = out.scoreB;
+        const argsB = out.args;
+
+        const rebuttalA = (await callStage(runId, {
+          stage: "rebuttal-a",
+          scoreA,
+          scoreB,
+          opponentArgs: argsB,
+        })) as ArgumentStageResponse;
+        out = await playArgumentStage(runId, rebuttalA, "rebuttal", "a");
+        if (runIdRef.current !== runId) return;
+        scoreA = out.scoreA;
+        scoreB = out.scoreB;
+
+        const rebuttalB = (await callStage(runId, {
+          stage: "rebuttal-b",
+          scoreA,
+          scoreB,
+          opponentArgs: argsA,
+        })) as ArgumentStageResponse;
+        out = await playArgumentStage(runId, rebuttalB, "rebuttal", "b");
+        if (runIdRef.current !== runId) return;
+
+        const v = (await callStage(runId, {
+          stage: "verdict",
+        })) as VerdictStageResponse;
+        if (runIdRef.current !== runId) return;
+
+        for (const veto of v.vetoes) {
+          if (runIdRef.current !== runId) return;
+          const evt: VetoEvent = { type: "veto", ...veto };
+          setVetoes((prev) => [...prev, evt]);
+          await pause(DRAMA_MS);
+        }
+        if (runIdRef.current !== runId) return;
+
+        const verdictEvt: VerdictEvent = {
+          type: "verdict",
+          winnerId: v.verdict.winnerId,
+          loserId: v.verdict.loserId,
+          proofChain: v.proofChain,
+          summary: v.summary,
+        };
+        setVerdict(verdictEvt);
+        await pause(DRAMA_MS);
+        if (runIdRef.current !== runId) return;
+
+        abortRef.current = null;
         setStatus("done");
-      } else {
+      } catch (err) {
+        if (runIdRef.current !== runId) return;
+        abortRef.current = null;
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setErrorMsg(
-          "The debate stream dropped before the judge ruled. The connection may be down or the debate service is unreachable."
+          err instanceof Error
+            ? err.message
+            : "The debate failed before the judge ruled. The debate service may be unreachable."
         );
         setStatus("error");
       }
-    };
-  }, [closeStream, handleEvent]);
+    })();
+  }, [callStage, playArgumentStage, stopRun]);
 
   const reset = useCallback(() => {
-    closeStream();
+    stopRun();
     setArgs([]);
     setScore(null);
     setLitNodes(new Set());
@@ -134,14 +288,13 @@ export default function Courtroom() {
     setVerdict(null);
     setErrorMsg(null);
     seenScores.current = new Set();
-    doneRef.current = false;
     setStatus("idle");
-  }, [closeStream]);
+  }, [stopRun]);
 
   useEffect(() => {
     return () => {
-      esRef.current?.close();
-      esRef.current = null;
+      abortRef.current?.abort();
+      abortRef.current = null;
     };
   }, []);
 
@@ -235,7 +388,7 @@ export default function Courtroom() {
                 className="rounded-lg border border-court-live bg-court-panel p-5"
               >
                 <h2 className="text-lg font-bold text-court-live">
-                  The stream failed
+                  The trial failed
                 </h2>
                 <p className="mt-1.5 text-[15px] text-court-text">{errorMsg}</p>
                 <button

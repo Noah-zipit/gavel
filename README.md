@@ -23,16 +23,34 @@ before running a live debate (the UI renders with mock data without them).
 | `QLOO_API_KEY` | —                                | Qloo taste-graph API key (hackathon tier)   |
 | `QLOO_BASE_URL`| `https://hackathon.api.qloo.com` | Qloo API base URL                           |
 | `QLOO_ADAPTER` | —                                | Set to `mock` to force the fixture adapter, even with a key set |
-| `OLLAMA_HOST`  | —                                | Self-hosted LLM endpoint for the judge/advocate agents |
+| `NVIDIA_API_KEY` | —                              | NVIDIA NIM key — advocates argue through it when set |
+| `NVIDIA_MODEL` | `nvidia/nemotron-3.5-lightning-30b-a3b` | NIM model for argument text           |
+| `NVIDIA_BASE_URL` | `https://integrate.api.nvidia.com/v1` | NIM API base URL                   |
+| `OLLAMA_HOST`  | —                                | Self-hosted LLM endpoint (fallback when no NIM key) |
 | `OLLAMA_MODEL` | —                                | Model name served at `OLLAMA_HOST`          |
 
-## Deployment
+Never commit real key values. `.env` is gitignored; `.env.example`
+documents the shape.
 
-> Do NOT deploy to Vercel yet. The owner's team (`noahext994-4907s-projects`) was
-> paused on 2026-10-09 for bandwidth overage. Deployment is a pending step: it
-> proceeds only after the owner resolves the paused team, at which point the app
-> ships from `Noah-zipit/gavel` with the repo-local identity
-> `Noah-zipit <noahext994@gmail.com>`.
+## Deployment (Vercel)
+
+The courtroom debate runs as **5 short stages** (`POST /api/debate/stage`:
+`opening-a` → `opening-b` → `rebuttal-a` → `rebuttal-b` → `verdict`), each
+stateless and each finishing well under the 60s Vercel Hobby function limit
+(`maxDuration = 60` is set on the route; 3 parallel NIM calls ≈ 30s worst
+case). The client chains them and replays the 700ms drama beats locally, so
+the trial looks and feels identical to the original stream.
+
+To ship it (owner's call — needs his unpaused Vercel account):
+
+1. Push this repo to GitHub (public, MIT).
+2. Vercel dashboard → Add New → Project → import the repo. Framework preset:
+   Next.js. No extra build config needed.
+3. Project → Settings → Environment Variables → add:
+   - `QLOO_API_KEY` — Qloo Taste API key (hackathon tier)
+   - `QLOO_BASE_URL` — `https://hackathon.api.qloo.com`
+   - `NVIDIA_API_KEY` — NVIDIA NIM key for advocate argument text
+4. Deploy. No code changes needed; no secrets live in the repo.
 
 ## Production notes
 
