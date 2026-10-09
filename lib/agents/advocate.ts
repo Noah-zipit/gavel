@@ -63,18 +63,23 @@ export class Advocate {
 
   async buildOpening(evidence: ScoredCandidate[]): Promise<Argument[]> {
     const top = this.rankEvidence(evidence, 3);
-    const out: Argument[] = [];
-    for (const e of top) {
-      const prompt =
-        `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
-        `(${this.candidate.cuisine}, ${this.candidate.priceTier}) as tonight's group dinner pick. ` +
-        `Write ONE forceful opening argument (2-3 sentences) grounded ONLY in the evidence below. ` +
-        `Cite the evidence label and its weight naturally. No em dashes. ` +
-        this.evidenceJsonBlock("opening", e);
-      const text = await this.llm.generate(prompt);
-      out.push({ text, evidence: { label: e.label, weight: e.weight, detail: e.detail } });
-    }
-    return out;
+    // Generate in parallel: cloud LLMs are slow per call, and the three
+    // arguments are independent.
+    return Promise.all(
+      top.map(async (e) => {
+        const prompt =
+          `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
+          `(${this.candidate.cuisine}, ${this.candidate.priceTier}) as tonight's group dinner pick. ` +
+          `Write ONE forceful opening argument (2-3 sentences) grounded ONLY in the evidence below. ` +
+          `Cite the evidence label and its weight naturally. No em dashes. ` +
+          this.evidenceJsonBlock("opening", e);
+        const text = await this.llm.generate(prompt);
+        return {
+          text,
+          evidence: { label: e.label, weight: e.weight, detail: e.detail },
+        };
+      })
+    );
   }
 
   async buildRebuttal(
@@ -82,22 +87,24 @@ export class Advocate {
     evidence: ScoredCandidate[]
   ): Promise<Argument[]> {
     const top = this.rankEvidence(evidence, 3);
-    const out: Argument[] = [];
-    for (let i = 0; i < top.length; i++) {
-      const e = top[i]!;
-      const opponent = opponentArgs[i] ?? opponentArgs[0];
-      const opponentSummary = opponent
-        ? opponent.text.split(".")[0]!.slice(0, 220)
-        : "the opposition's opening claims.";
-      const prompt =
-        `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
-        `(${this.candidate.cuisine}, ${this.candidate.priceTier}). The opposition just argued: ` +
-        `"${opponentSummary}" Rebut it in ONE sharp rebuttal (2-3 sentences) grounded ONLY in the ` +
-        `evidence below. Cite the evidence label and weight naturally. No em dashes. ` +
-        this.evidenceJsonBlock("rebuttal", e, opponentSummary);
-      const text = await this.llm.generate(prompt);
-      out.push({ text, evidence: { label: e.label, weight: e.weight, detail: e.detail } });
-    }
-    return out;
+    return Promise.all(
+      top.map(async (e, i) => {
+        const opponent = opponentArgs[i] ?? opponentArgs[0];
+        const opponentSummary = opponent
+          ? opponent.text.split(".")[0]!.slice(0, 220)
+          : "the opposition's opening claims.";
+        const prompt =
+          `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
+          `(${this.candidate.cuisine}, ${this.candidate.priceTier}). The opposition just argued: ` +
+          `"${opponentSummary}" Rebut it in ONE sharp rebuttal (2-3 sentences) grounded ONLY in the ` +
+          `evidence below. Cite the evidence label and weight naturally. No em dashes. ` +
+          this.evidenceJsonBlock("rebuttal", e, opponentSummary);
+        const text = await this.llm.generate(prompt);
+        return {
+          text,
+          evidence: { label: e.label, weight: e.weight, detail: e.detail },
+        };
+      })
+    );
   }
 }

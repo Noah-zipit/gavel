@@ -10,7 +10,7 @@ export interface LlmAdapter {
 }
 
 const OLLAMA_TIMEOUT_MS = 20_000;
-const NIM_TIMEOUT_MS = 30_000;
+const NIM_TIMEOUT_MS = 90_000;
 
 function ollamaHost(): string {
   return (process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434").replace(/\/+$/, "");
@@ -28,7 +28,7 @@ function nimBaseUrl(): string {
 }
 
 function nimModel(): string {
-  return process.env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
+  return process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3.5-lightning-30b-a3b";
 }
 
 function nimApiKey(): string | undefined {
@@ -36,44 +36,87 @@ function nimApiKey(): string | undefined {
 }
 
 // NimAdapter: NVIDIA NIM via its OpenAI-compatible chat completions endpoint.
+// The default model is a reasoning model that emits its thinking trace, so we
+// ask it to wrap the final argument in [ARGUMENT]...[/ARGUMENT] markers and
+// extract the last block. Falls back to cleaned raw text if no marker found.
 export class NimAdapter implements LlmAdapter {
+  private stripThinking(text: string): string {
+    const blocks = text.match(/\[ARGUMENT\]([\s\S]*?)\[\/ARGUMENT\]/g);
+    if (blocks && blocks.length > 0) {
+      const last = blocks[blocks.length - 1]!;
+      return last
+        .replace(/\[ARGUMENT\]/, "")
+        .replace(/\[\/ARGUMENT\]/, "")
+        .trim();
+    }
+    // No markers: drop a leading thinking-trace header if present.
+    return text
+      .replace(/^Here's a thinking process:[\s\S]*?\n\n(?=\S)/, "")
+      .trim();
+  }
+
+  private isUsableArgument(text: string): boolean {
+    const t = text.trim();
+    return (
+      t.length >= 40 && !/your argument here/i.test(t) && !/^\[ARGUMENT\]/.test(t)
+    );
+  }
+
   async generate(prompt: string): Promise<string> {
     const key = nimApiKey();
     if (!key) {
       throw new Error("NVIDIA_API_KEY is not set");
     }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
-    try {
-      const res = await fetch(`${nimBaseUrl()}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: nimModel(),
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-          max_tokens: 220,
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const detail = (await res.text()).slice(0, 200);
-        throw new Error(`NIM returned status ${res.status}: ${detail}`);
+    const instruction =
+      "\n\nThink step by step. Then write your FINAL 2-3 sentence argument " +
+      "between [ARGUMENT] and [/ARGUMENT] markers. Put only the argument " +
+      "sentences between the markers, no placeholder text. No em dashes.";
+    // One retry: reasoning models occasionally echo the placeholder or get
+    // cut off mid-thinking.
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
+      try {
+        const res = await fetch(`${nimBaseUrl()}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: nimModel(),
+            messages: [{ role: "user", content: prompt + instruction }],
+            temperature: 0.7,
+            max_tokens: 1200,
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const detail = (await res.text()).slice(0, 200);
+          throw new Error(`NIM returned status ${res.status}: ${detail}`);
+        }
+        const data = (await res.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const raw = (data.choices?.[0]?.message?.content ?? "").trim();
+        if (!raw) {
+          throw new Error("NIM returned an empty response");
+        }
+        const text = this.stripThinking(raw);
+        if (this.isUsableArgument(text)) {
+          return text;
+        }
+        lastError = new Error(
+          `NIM returned unusable argument text (attempt ${attempt + 1})`
+        );
+      } catch (err) {
+        lastError = err;
+      } finally {
+        clearTimeout(timer);
       }
-      const data = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const text = (data.choices?.[0]?.message?.content ?? "").trim();
-      if (!text) {
-        throw new Error("NIM returned an empty response");
-      }
-      return text;
-    } finally {
-      clearTimeout(timer);
     }
+    throw lastError instanceof Error ? lastError : new Error("NIM failed");
   }
 }
 
