@@ -1,14 +1,16 @@
 // LLM layer for the advocates and judge.
 //
-// getLlm() tries Ollama first, then falls back to TemplateArguer (deterministic,
-// evidence-driven templates) on ANY error. The debate must run even with no LLM
-// and no network, so this never rejects: the template fallback always succeeds.
+// getLlm() tries, in order: NVIDIA NIM (if NVIDIA_API_KEY is set) → Ollama →
+// TemplateArguer (deterministic, evidence-driven templates) on ANY error. The
+// debate must run even with no LLM and no network, so this never rejects: the
+// template fallback always succeeds.
 
 export interface LlmAdapter {
   generate(prompt: string): Promise<string>;
 }
 
 const OLLAMA_TIMEOUT_MS = 20_000;
+const NIM_TIMEOUT_MS = 30_000;
 
 function ollamaHost(): string {
   return (process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434").replace(/\/+$/, "");
@@ -16,6 +18,63 @@ function ollamaHost(): string {
 
 function ollamaModel(): string {
   return process.env.OLLAMA_MODEL ?? "llama3.1";
+}
+
+function nimBaseUrl(): string {
+  return (process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1").replace(
+    /\/+$/,
+    ""
+  );
+}
+
+function nimModel(): string {
+  return process.env.NVIDIA_MODEL ?? "meta/llama-3.1-8b-instruct";
+}
+
+function nimApiKey(): string | undefined {
+  return process.env.NVIDIA_API_KEY || undefined;
+}
+
+// NimAdapter: NVIDIA NIM via its OpenAI-compatible chat completions endpoint.
+export class NimAdapter implements LlmAdapter {
+  async generate(prompt: string): Promise<string> {
+    const key = nimApiKey();
+    if (!key) {
+      throw new Error("NVIDIA_API_KEY is not set");
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), NIM_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${nimBaseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: nimModel(),
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+          max_tokens: 220,
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const detail = (await res.text()).slice(0, 200);
+        throw new Error(`NIM returned status ${res.status}: ${detail}`);
+      }
+      const data = (await res.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const text = (data.choices?.[0]?.message?.content ?? "").trim();
+      if (!text) {
+        throw new Error("NIM returned an empty response");
+      }
+      return text;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }
 
 export class OllamaAdapter implements LlmAdapter {
@@ -113,10 +172,20 @@ export class TemplateArguer implements LlmAdapter {
 }
 
 export function getLlm(): LlmAdapter {
+  const nim = new NimAdapter();
   const ollama = new OllamaAdapter();
   const template = new TemplateArguer();
   return {
     async generate(prompt: string): Promise<string> {
+      if (nimApiKey()) {
+        try {
+          return await nim.generate(prompt);
+        } catch (err) {
+          console.warn(
+            `llm: NIM unavailable (${err instanceof Error ? err.message : "unknown"}); trying Ollama`
+          );
+        }
+      }
       try {
         return await ollama.generate(prompt);
       } catch (err) {
