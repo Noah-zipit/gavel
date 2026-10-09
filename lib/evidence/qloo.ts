@@ -157,8 +157,29 @@ export async function searchEntity(
   return results[0] ?? null;
 }
 
+// Payment/amenity junk that Qloo attaches to place entities ("Mastercard",
+// "Accepts credit cards", "Convenient", "Parking", ...). These are not taste
+// signal and must never reach argument prose, evidence labels, or the UI.
+const JUNK_TAG_PATTERNS = [
+  /mastercard/i,
+  /\bvisa\b/i,
+  /\bamex\b/i,
+  /credit card/i,
+  /\bconvenient\b/i,
+  /convenience/i,
+  /^place$/i,
+  /parking/i,
+  /\bwifi\b/i,
+  /restroom/i,
+  /\batm\b/i,
+];
+
 export function tagLabels(tags: Array<{ name?: string; id?: string }> | undefined): string[] {
-  return (tags ?? []).map((t) => t.name ?? "").filter(Boolean).slice(0, 6);
+  return (tags ?? [])
+    .map((t) => t.name ?? "")
+    .filter(Boolean)
+    .filter((name) => !JUNK_TAG_PATTERNS.some((p) => p.test(name)))
+    .slice(0, 6);
 }
 
 export function normalizeAffinity(raw: unknown): number {

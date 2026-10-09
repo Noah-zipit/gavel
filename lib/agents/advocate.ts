@@ -41,6 +41,53 @@ export class Advocate {
       : "tonight's group dinner pick";
   }
 
+  /** Each advocate argues in a genuinely different register. */
+  private get voice(): string {
+    return this.side === "A"
+      ? "Your register: plain-spoken and numbers-first. Short sentences. No flourish, no metaphors, no slogans. State the number, state what it means, stop."
+      : "Your register: vivid and people-first. Warmer. Talk about the humans at the table by name. A little color is fine, but stay concrete and cite the numbers.";
+  }
+
+  /** Phrases neither advocate may ever use. */
+  private get banList(): string {
+    return (
+      "Never use these phrases or anything like them: " +
+      "'signals do not argue back', 'the verdict writes itself'. " +
+      "Never close with a slogan. Every argument must cite its evidence " +
+      "(person, percentage, source)."
+    );
+  }
+
+  /** Affinity scale grounding so weak numbers are never praised. */
+  private get scale(): string {
+    return (
+      "Affinity scale: above 60% is strong, 30-60% is mixed, below 30% is " +
+      "veto territory. NEVER cite a below-30% affinity as support for your " +
+      "side. If your best evidence is below 30%, say the support is thin " +
+      "and argue the other option is worse for the group."
+    );
+  }
+
+  /**
+   * Clean opponent excerpt for rebuttals: up to two sentences, ~140 chars,
+   * cut only at sentence boundaries. The lookbehind split never breaks
+   * inside a number ("0.27" has no space after its period), so quotes can
+   * no longer end mid-number like "roughly 0".
+   */
+  private opponentPoint(text: string): string {
+    const sentences = text
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let out = "";
+    for (const s of sentences) {
+      const next = out ? `${out} ${s}` : s;
+      if (next.length > 140) break;
+      out = next;
+    }
+    return out || text.slice(0, 140).trim();
+  }
+
   /** "(Italian restaurant, $$)" for dining; "(sci-fi epic)" for movies. */
   private get descriptor(): string {
     if (this.domain === "movies") return this.candidate.cuisine;
@@ -89,9 +136,9 @@ export class Advocate {
       top.map(async (e) => {
         const prompt =
           `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
-          `(${this.descriptor}) as ${this.pickNoun}. ` +
+          `(${this.descriptor}) as ${this.pickNoun}. ${this.voice} ` +
           `Write ONE forceful opening argument (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
-          `Cite the evidence label and its weight naturally. No em dashes. ` +
+          `Cite the evidence label and its weight naturally. ${this.scale} ${this.banList} No em dashes. ` +
           this.evidenceJsonBlock("opening", e);
         const text = await this.llm.generate(prompt);
         return {
@@ -110,14 +157,18 @@ export class Advocate {
     return Promise.all(
       top.map(async (e, i) => {
         const opponent = opponentArgs[i] ?? opponentArgs[0];
+        // Paraphrase-only rebuttals: the model restates the opponent's point
+        // in its own words, so a raw quote can never be pasted mid-sentence.
         const opponentSummary = opponent
-          ? opponent.text.split(".")[0]!.slice(0, 220)
+          ? this.opponentPoint(opponent.text)
           : "the opposition's opening claims.";
         const prompt =
           `You are Advocate ${this.side} in the AI Courtroom, arguing FOR ${this.candidate.name} ` +
-          `(${this.descriptor}). The opposition just argued: ` +
-          `"${opponentSummary}" Rebut it in ONE sharp rebuttal (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
-          `evidence below. Cite the evidence label and weight naturally. No em dashes. ` +
+          `(${this.descriptor}). ${this.voice} ` +
+          `The opposition's point, in brief: "${opponentSummary}" ` +
+          `Paraphrase it in your own words; never quote it verbatim. ` +
+          `Write ONE sharp rebuttal (2-3 sentences) grounded ONLY in the evidence values below (never mention JSON field names like "topLabel"). ` +
+          `Cite the evidence label and weight naturally. ${this.scale} ${this.banList} No em dashes. ` +
           this.evidenceJsonBlock("rebuttal", e, opponentSummary);
         const text = await this.llm.generate(prompt);
         return {

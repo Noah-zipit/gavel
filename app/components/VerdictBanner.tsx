@@ -142,16 +142,33 @@ export default function VerdictBanner({
         <div className="mt-4">
           <p className="text-lg font-bold">{winnerName} wins.</p>
           <p className="mt-1 text-[15px] font-medium">{summary}</p>
-          <ol className="mt-4 flex flex-col gap-2">
+          <ol className="mt-4 grid gap-2 sm:grid-cols-2">
             {proofSteps.map((step, i) => {
               // Affinity steps already carry their percentage in the step
               // text; the evidence + raw weight would just repeat it.
               const isAffinity = /%/.test(step.step);
+              const isVetoStep = /vetoes/i.test(step.step);
+              const loser = (verdict?.loserName ?? "").toLowerCase();
+              const isLoserStep =
+                !isVetoStep &&
+                loser !== "" &&
+                step.step.toLowerCase().includes(loser);
               return (
                 <li
                   key={i}
-                  className="flex flex-wrap items-baseline gap-x-2 rounded bg-black/15 px-3 py-2 text-sm font-medium"
+                  className={`flex flex-wrap items-baseline gap-x-2 rounded px-3 py-1.5 text-[13px] font-medium ${
+                    isVetoStep
+                      ? "border border-court-live/50 bg-court-live/10"
+                      : isLoserStep
+                        ? "bg-black/15 opacity-60"
+                        : "bg-black/15"
+                  }`}
                 >
+                  {isVetoStep && (
+                    <span className="rounded bg-court-live px-1.5 py-0.5 text-[10px] font-extrabold tracking-[0.12em] text-white">
+                      VETOED
+                    </span>
+                  )}
                   <span className="font-bold">{i + 1}.</span>
                   <span className="font-semibold">{step.step}</span>
                   {!isAffinity && (

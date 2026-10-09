@@ -120,7 +120,7 @@ export default function VerdictCardShare({
         role="dialog"
         aria-modal="true"
         aria-label="Share verdict card"
-        className="relative w-full max-w-[420px] rounded-lg border border-court-border bg-court-panel p-5"
+        className="relative w-full max-w-[525px] rounded-lg border border-court-border bg-court-panel p-5"
       >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold tracking-[0.14em] text-court-text">
@@ -164,18 +164,18 @@ export default function VerdictCardShare({
           </button>
           <button
             type="button"
-            onClick={download}
-            disabled={busy !== null}
-            className="inline-flex min-h-[48px] w-full items-center justify-center rounded-md border border-court-border-strong px-6 text-base font-bold text-court-text disabled:opacity-60"
-          >
-            {busy === "download" ? "Preparing…" : "Download PNG"}
-          </button>
-          <button
-            type="button"
             onClick={copyText}
             className="inline-flex min-h-[48px] w-full items-center justify-center rounded-md px-6 text-base font-semibold text-court-muted"
           >
             {copied ? "Copied" : "Copy text instead"}
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            disabled={busy !== null}
+            className="mx-auto mt-1 inline-flex min-h-[44px] items-center justify-center px-4 text-sm font-medium text-court-subtle underline-offset-4 hover:underline disabled:opacity-60"
+          >
+            {busy === "download" ? "Preparing…" : "Download PNG instead"}
           </button>
         </div>
         <p className="mt-3 text-center text-xs text-court-subtle">

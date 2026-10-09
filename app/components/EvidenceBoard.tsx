@@ -186,6 +186,10 @@ export default function EvidenceBoard({
           {placed.map((n) => {
             const tone = TONES[n.candidateIndex % TONES.length]!;
             const lit = litNodes.has(n.id);
+            // Node shows person + affinity only. The candidate is identified
+            // by the node's tone color, mapped in the legend below — this
+            // avoids the mid-word truncation ("Casa di R..") that came from
+            // squeezing candidate names inside the circles.
             return (
               <g key={n.id} className={lit ? "node-lit" : undefined}>
                 <circle
@@ -204,29 +208,19 @@ export default function EvidenceBoard({
                 />
                 <text
                   x={n.x}
-                  y={n.y - 8}
+                  y={n.y - 2}
                   textAnchor="middle"
                   fill="var(--court-text)"
                   fontSize="13"
                   fontWeight="700"
                 >
-                  {shortName(n.personName)}
+                  {shortName(n.personName, 14)}
                 </text>
                 <text
                   x={n.x}
-                  y={n.y + 8}
+                  y={n.y + 18}
                   textAnchor="middle"
                   fill={tone.stroke}
-                  fontSize="11"
-                  fontWeight="600"
-                >
-                  {shortName(n.candidateName)}
-                </text>
-                <text
-                  x={n.x}
-                  y={n.y + 22}
-                  textAnchor="middle"
-                  fill="var(--court-muted)"
                   fontSize="11"
                   fontWeight="600"
                 >

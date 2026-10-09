@@ -105,6 +105,16 @@ export class NimAdapter implements LlmAdapter {
     if (/your argument here/i.test(t)) return false;
     // Token salad: a glitching model emits control tokens like <|close|>.
     if ((t.match(/<\|[^|]*\|>/g) || []).length >= 2) return false;
+    // Token salad: non-Latin script runs inside an English argument.
+    const nonLatin = (t.match(/[一-鿿぀-ヿ가-힯]/g) || []).length;
+    if (nonLatin > t.length * 0.05) return false;
+    // Token salad: the same short token looped dozens of times ("54% ... 54%").
+    // A real 2-3 sentence argument never repeats one token ten times.
+    const counts = new Map<string, number>();
+    for (const tok of t.toLowerCase().split(/\s+/)) {
+      counts.set(tok, (counts.get(tok) ?? 0) + 1);
+    }
+    for (const c of counts.values()) if (c > 10) return false;
     // Must read like prose: at least one substantial sentence.
     const sentences = t.split(/[.!?]/).map((s) => s.trim()).filter((s) => s.length > 20);
     return sentences.length >= 1;
@@ -204,22 +214,42 @@ export class OllamaAdapter implements LlmAdapter {
 // TemplateArguer: deterministic, evidence-driven fallback. It does not invent
 // arguments; it renders the supplied evidence into courtroom phrasing. Prompts
 // embed evidence as JSON, so the template can extract label/detail/weight.
+// Side-aware: Advocate A argues numbers-first and clipped; Advocate B argues
+// people-first and warmer. Neither ever uses the banned slogan phrases.
 export class TemplateArguer implements LlmAdapter {
   async generate(prompt: string): Promise<string> {
-    const { kind, candidate, topLabel, topDetail, weight, opponentSummary } =
+    const { kind, candidate, topLabel, topDetail, weight, opponentSummary, side } =
       this.parsePrompt(prompt);
 
     const pct = Math.round(weight * 100);
+    const weak = weight < 0.3;
     if (kind === "rebuttal") {
+      if (side === "B") {
+        return (
+          `They argue this: ${opponentSummary} ` +
+          `But ${topDetail} ` +
+          `${topLabel} favors ${candidate}, and that is what matters at this table.`
+        );
+      }
       return (
-        `Your honor, the opposition leans on this: ${opponentSummary} ` +
-        `But the numbers cut the other way. ${topLabel}: ${topDetail} ` +
-        `That is a ${pct}% taste-graph signal for ${candidate}, and signals do not argue back.`
+        `The opposition leans on this: ${opponentSummary} ` +
+        `The numbers cut the other way. ${topLabel}: ${topDetail} ` +
+        (weak
+          ? `Support is thin at ${pct}%, but the other side has less.`
+          : `${pct}% for ${candidate}. Count it.`)
+      );
+    }
+    if (side === "B") {
+      return (
+        `${topDetail} ` +
+        `${topLabel}, and it points at ${candidate}. That is the people's pick.`
       );
     }
     return (
-      `${candidate} wins on ${topLabel}. ${topDetail} ` +
-      `A ${pct}% alignment from the taste graph is not an opinion, it is arithmetic.`
+      `${candidate}: ${topLabel}. ${topDetail} ` +
+      (weak
+        ? `Only ${pct}%, and nobody loves it. But nobody is vetoing it either.`
+        : `${pct}% alignment. Arithmetic, not opinion.`)
     );
   }
 
@@ -231,6 +261,7 @@ export class TemplateArguer implements LlmAdapter {
     topDetail: string;
     weight: number;
     opponentSummary: string;
+    side: "A" | "B";
   } {
     const out = {
       kind: "opening",
@@ -239,7 +270,10 @@ export class TemplateArguer implements LlmAdapter {
       topDetail: "the taste graph favors our candidate.",
       weight: 0.5,
       opponentSummary: "the other side's best claim.",
+      side: "A" as "A" | "B",
     };
+    const sideMatch = prompt.match(/You are Advocate ([AB])\b/);
+    if (sideMatch?.[1] === "B") out.side = "B";
     const m = prompt.match(/\[EVIDENCE_JSON\]([\s\S]*?)\[\/EVIDENCE_JSON\]/);
     if (m?.[1]) {
       try {
