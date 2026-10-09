@@ -532,7 +532,19 @@ export default function Courtroom({
 
             {vetoFlash && <VetoInterruption veto={vetoFlash} />}
 
-            <VerdictBanner vetoes={vetoes} verdict={verdict} />
+            <VerdictBanner
+              vetoes={vetoes}
+              verdict={verdict}
+              score={score}
+              candidateNames={[
+                apiCandidates.find((c) => c.side === "a")?.name ??
+                  apiCandidates[0]?.name ??
+                  "Advocate A",
+                apiCandidates.find((c) => c.side === "b")?.name ??
+                  apiCandidates[1]?.name ??
+                  "Advocate B",
+              ]}
+            />
           </>
         )}
       </main>

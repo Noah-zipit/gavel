@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import type { VetoEvent, VerdictEvent } from "@/lib/debate-events";
+import type { ScoreEvent, VetoEvent, VerdictEvent } from "@/lib/debate-events";
+import { weightToPct } from "@/lib/debate-events";
 import { GavelIcon } from "./icons";
+import VerdictCardShare from "./verdict-card/VerdictCardShare";
+import type { VerdictCardData } from "./verdict-card/drawVerdictCard";
 
 interface VerdictBannerProps {
   vetoes: VetoEvent[];
   verdict: VerdictEvent | null;
+  score: ScoreEvent | null;
+  /** [Advocate A candidate, Advocate B candidate] for the card's split bar */
+  candidateNames: [string, string];
 }
 
 /** "is 0.18, below" -> 18. Defensive: veto reasons vary by adapter. */
@@ -51,10 +57,15 @@ function buildShareText(
   return parts.join(" ");
 }
 
-export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
+export default function VerdictBanner({
+  vetoes,
+  verdict,
+  score,
+  candidateNames,
+}: VerdictBannerProps) {
   if (vetoes.length === 0 && !verdict) return null;
 
-  const [shared, setShared] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
   const latestVeto = vetoes[vetoes.length - 1];
   const winnerName = verdict?.winnerName ?? verdict?.winnerId ?? "";
   const vetoedName = latestVeto?.candidateName ?? latestVeto?.candidateId ?? "";
@@ -74,28 +85,37 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
     (s) => !/^verdict:/i.test(s.step.trim())
   );
 
-  const share = async () => {
-    const url =
-      typeof window !== "undefined" ? window.location.origin : "";
-    const text = buildShareText(winnerName, vetoes, proofSteps, url);
-    // Web Share first (Android Chrome); clipboard fallback for desktop.
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      try {
-        await navigator.share({ text });
-        return;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        // fall through to clipboard
+  // Data for the canvas verdict card (drawn client-side in the share modal).
+  const cardData: VerdictCardData | null = verdict
+    ? {
+        winnerName,
+        candidateAName: candidateNames[0],
+        candidateBName: candidateNames[1],
+        scoreA: score?.a ?? 50,
+        scoreB: score?.b ?? 50,
+        veto: latestVeto
+          ? {
+              by: latestVeto.by,
+              candidateName: vetoedName,
+              reason: latestVeto.reason,
+            }
+          : null,
+        evidence: proofSteps
+          .filter((s) => /%/.test(s.step))
+          .slice(0, 2)
+          .map((s) => ({ label: s.evidence, pct: weightToPct(s.weight) })),
+        evidenceFallbackNote: `Decided by ${proofSteps.length} evidence points.`,
+        host:
+          typeof window !== "undefined"
+            ? window.location.host
+            : "gavel-undeadash1010.vercel.app",
+        dateLabel: new Date().toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
       }
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      setShared(true);
-      setTimeout(() => setShared(false), 2200);
-    } catch {
-      // Clipboard unavailable: nothing more to offer.
-    }
-  };
+    : null;
 
   return (
     <section
@@ -144,10 +164,10 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
           <div className="mt-5">
             <button
               type="button"
-              onClick={share}
+              onClick={() => setCardOpen(true)}
               className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-court-bg px-6 text-base font-bold text-court-gold"
             >
-              {shared ? "Copied" : "Share verdict"}
+              Share verdict
             </button>
           </div>
         </div>
@@ -158,6 +178,18 @@ export default function VerdictBanner({ vetoes, verdict }: VerdictBannerProps) {
             {latestVeto.reason}
           </p>
         )
+      )}
+      {cardOpen && cardData && (
+        <VerdictCardShare
+          data={cardData}
+          textFallback={buildShareText(
+            winnerName,
+            vetoes,
+            proofSteps,
+            typeof window !== "undefined" ? window.location.origin : ""
+          )}
+          onClose={() => setCardOpen(false)}
+        />
       )}
     </section>
   );

@@ -206,10 +206,15 @@ which is how the UI and the demo operator know which evidence source is live.
   math is identical. The setup screen has a Dining/Movies toggle with
   per-domain demo data; the movies demo seeds a "no musicals" dislike so the
   veto fires on the demo path too.
-- **Shareable verdict.** `VerdictBanner` has a Share button: Web Share API
-  (`navigator.share`) on mobile, clipboard fallback on desktop with a
-  "Copied" confirmation. The text is winner + veto one-liner + top two proof
-  points + app URL, no em dashes.
+- **Shareable verdict.** `VerdictBanner` opens a `VerdictCardShare` modal:
+  a canvas-rendered 1080x1350 verdict card
+  (`app/components/verdict-card/drawVerdictCard.ts`, hand-rolled canvas, no
+  deps) with the Linear-derived near-black palette: eyebrow, THE VERDICT,
+  gold winner name, veto block, top-2 evidence rows, amber/teal final-split
+  bar, footer with host + date. Share via Web Share file sharing
+  (`navigator.share` with a PNG File, Android Chrome), Download PNG fallback,
+  and Copy-text option (winner + veto one-liner + top two proof points +
+  app URL, no em dashes). Preview shown in the modal before sharing.
 - **Debate history.** `lib/history.ts` persists each verdict to localStorage
   (capped at 20, newest first): date, domain, people, candidates, winner,
   veto, summary. The setup screen lists them quietly with expandable rows.
