@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gavel — The Disagreement Engine
 
-## Getting Started
+Adversarial AI agents that settle group decisions. Two advocates each argue a
+candidate from real taste-graph evidence while a judge agent watches for veto
+conditions, then delivers a verdict with receipts. The Qloo Agentic Hackathon
+demo is the AI Courtroom for group dining: four friends, one Friday night, and a
+live debate over where to eat.
 
-First, run the development server:
+## Quickstart
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Copy `.env.example` to `.env.local` and fill in keys
+before running a live debate (the UI renders with mock data without them).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable       | Default                          | Purpose                                     |
+|----------------|----------------------------------|---------------------------------------------|
+| `QLOO_API_KEY` | —                                | Qloo taste-graph API key (hackathon tier)   |
+| `QLOO_BASE_URL`| `https://hackathon.api.qloo.com` | Qloo API base URL                           |
+| `QLOO_ADAPTER` | —                                | Set to `mock` to force the fixture adapter, even with a key set |
+| `OLLAMA_HOST`  | —                                | Self-hosted LLM endpoint for the judge/advocate agents |
+| `OLLAMA_MODEL` | —                                | Model name served at `OLLAMA_HOST`          |
 
-## Learn More
+## Deployment
 
-To learn more about Next.js, take a look at the following resources:
+> Do NOT deploy to Vercel yet. The owner's team (`noahext994-4907s-projects`) was
+> paused on 2026-10-09 for bandwidth overage. Deployment is a pending step: it
+> proceeds only after the owner resolves the paused team, at which point the app
+> ships from `Noah-zipit/gavel` with the repo-local identity
+> `Noah-zipit <noahext994@gmail.com>`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Production notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Custom 404, favicon, and page metadata ship with the demo build.
+- Terms of Service / Privacy pages are deferred: this is a hackathon demo with
+  no user accounts and no user data collected. They become required before any
+  public production launch.
