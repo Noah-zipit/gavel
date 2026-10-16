@@ -2,6 +2,9 @@
   "name": "gavel",
   "version": "0.1.0",
   "private": true,
+  "description": "Gavel — The Disagreement Engine: adversarial AI agents settle group decisions with taste-graph evidence. Qloo Agentic Hackathon entry.",
+  "author": "Ashar Qaisar",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
