@@ -5,6 +5,19 @@ export const metadata: Metadata = {
   title: "Gavel · AI Courtroom",
   description:
     "Two advocate AI agents argue a group decision with real taste-graph evidence while a judge rules with receipts.",
+  openGraph: {
+    title: "Gavel · AI Courtroom",
+    description:
+      "Two advocate AI agents argue a group decision with real taste-graph evidence while a judge rules with receipts.",
+    type: "website",
+    url: "https://gavel-undeadash1010.vercel.app",
+  },
+  twitter: {
+    card: "summary",
+    title: "Gavel · AI Courtroom",
+    description:
+      "Two advocate AI agents argue a group decision with real taste-graph evidence while a judge rules with receipts.",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
